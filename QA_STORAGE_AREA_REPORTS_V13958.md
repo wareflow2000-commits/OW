@@ -3,12 +3,13 @@
 ## Scope
 - Adds `get_stock_summary_by_storage_area(p_start_date, p_end_date, p_warehouse_id, p_storage_area_id, p_category_id)`.
 - Uses `inventory_ledger.storage_area_id`, `stock.storage_area_id`, and `item_categories` for report filtering and labels.
-- Checks active authenticated profile, report permission, assigned warehouse scope, date range, and warehouse-to-storage-area assignment.
+- Checks active authenticated profile, report permission, assigned warehouse scope, date range, and the current storage-area owner relation.
 - Removes anonymous/PUBLIC execution on the new RPC; grants execution to authenticated and service_role.
 - Updates report UI filters in `app.js` to use `storage_areas` and `shelves.storage_area_id`, not legacy `zones` IDs, for report location filtering.
 
 ## Verification performed
-- The migration was applied to the connected Supabase project.
+- Both database migrations were applied to the connected Supabase project.
+- A follow-up migration corrected storage-area validation to use the current authoritative `storage_areas.warehouse_id` owner relation; this avoids rejecting new areas before the mapping-table write paths are rolled out.
 - RPC call returned two matching sample items for the selected warehouse/storage area.
 - Category filter returned only the two items in the selected category.
 - Privileges verified: `anon` cannot execute; `authenticated` and `service_role` can execute.
