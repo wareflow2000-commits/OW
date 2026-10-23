@@ -5350,6 +5350,54 @@ button, input, select, textarea {
   box-sizing: border-box;
   overflow: visible;
 }
+/* Desktop topbar content distribution: use the full available bar, not a compact cluster. */
+@media (min-width: 801px) {
+  .v13-topbar {
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .v13-topbar > .v13-head-left {
+    display: flex;
+    flex: 1 1 0;
+    min-width: 180px;
+    width: auto;
+    max-width: none;
+  }
+  .v13-topbar > .v13-header-actions {
+    display: flex;
+    flex: 0 1 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 0;
+    width: auto;
+    max-width: none;
+    white-space: nowrap;
+  }
+  .v13-topbar > .v13-head-search {
+    display: flex;
+    flex: 1 1 320px;
+    min-width: 220px;
+    width: auto;
+    max-width: 520px;
+    margin-inline: 8px;
+  }
+  .v13-topbar > .v13-head-right {
+    display: flex;
+    flex: 1 1 0;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+    width: auto;
+    max-width: none;
+    white-space: nowrap;
+  }
+  .v13-topbar .v13-page-block {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
 .page {
   display: block;
   flex: 1 1 0;
