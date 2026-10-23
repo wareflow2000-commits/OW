@@ -251,17 +251,17 @@ function v8Inventory(){
     if(whId && !stocks.length && String(i.default_warehouse_id||'')!==String(whId)) return '';
     const qty=stocks.reduce((n,st)=>n+Number(st.quantity||0),0);
     const warehouses=locationNames(stocks,'warehouse_id',sh=>v5Find('warehouses',sh?.warehouse_id)?.name);
-    const zones=locationNames(stocks,'zone_id',sh=>v5Find('zones',sh?.zone_id)?.name);
-    const sections=locationNames(stocks,'section_id',sh=>v5Find('sections',sh?.section_id)?.name);
+    const zones=locationNames(stocks,'storage_area_id',sh=>v5Find('storage_areas',sh?.storage_area_id)?.name);
+    const sections=(v5Find('item_categories',i.category_id)||{}).name||i.category||'-';
     const shelves=locationNames(stocks,'shelf_id',sh=>sh?.code||sh?.full_path);
     const defaultWh=v5Find('warehouses',i.default_warehouse_id)?.name;
-    const defaultZone=v5Find('zones',i.default_zone_id)?.name;
-    const defaultSection=v5Find('sections',i.default_section_id)?.name;
+    const defaultZone=(v5Find('storage_areas',i.default_storage_area_id)||v5All('storage_areas').find(a=>a.legacy_zone_id===i.default_zone_id)||{}).name;
+    const defaultSection=(v5Find('item_categories',i.category_id)||{}).name||i.category||'-';
     const defaultShelf=v5Find('shelves',i.default_shelf_id);
     return `<tr><td><b>${esc(i.code||'')}</b><div class="muted">${esc(i.item_number||'')}</div></td><td><b>${esc(state.lang==='ar'?i.name_ar:i.name_en)}</b><div class="muted">${esc(i.name_en||'')}</div></td><td>${esc(i.base_unit||'')}</td><td>${stocks.length?warehouses:esc(defaultWh||'-')}</td><td>${stocks.length?zones:esc(defaultZone||'-')}</td><td>${stocks.length?sections:esc(defaultSection||'-')}</td><td>${stocks.length?shelves:esc(defaultShelf?.code||'-')}</td><td><b>${qty}</b></td><td>${Number(i.safety_stock||0)}</td><td><button class="btn small" data-action="v8-edit-item:${i.id}">${esc(t.edit)}</button> <button class="btn small danger" data-action="v8-delete-item:${i.id}">${esc(t.delete)}</button></td></tr>`;
   }).filter(Boolean);
   return pageHead(t.inventory,state.lang==='ar'?'إدارة الأصناف والأرصدة والمواقع':'Items, balances and locations',`<button class="btn primary" data-action="v8-open-item">＋ ${esc(t.addItem)}</button><button class="btn ghost" data-action="v5-export">CSV</button>`)+
-    `<div class="card"><div class="card-body"><div class="filters"><div class="search field"><span>⌕</span><input placeholder="${esc(t.search)}" value="${esc(state.v8ItemSearch||'')}" data-v8-item-search></div>${v8Select('', 'v8-filter-wh',v5All('warehouses'),whId,x=>`${x.name} (${x.code})`)}</div>${table([t.sku,t.name,t.unit,t.warehouse,t.zone,t.section,t.shelf,t.current||'الرصيد',t.safetyStock,t.actions],tableRows,t.noData)}</div></div>`;
+    `<div class="card"><div class="card-body"><div class="filters"><div class="search field"><span>⌕</span><input placeholder="${esc(t.search)}" value="${esc(state.v8ItemSearch||'')}" data-v8-item-search></div>${v8Select('', 'v8-filter-wh',v5All('warehouses'),whId,x=>`${x.name} (${x.code})`)}</div>${table([t.sku,t.name,t.unit,t.warehouse,state.lang==='ar'?'منطقة التخزين':'Storage Area',state.lang==='ar'?'تصنيف الصنف':'Item Category',t.shelf,t.current||'الرصيد',t.safetyStock,t.actions],tableRows,t.noData)}</div></div>`;
 }
 function v8ItemModal(id){
   v8Ensure(); const t=T(), x=v5Find('items',id)||{}; const whId=x.default_warehouse_id||''; const areas=v5All('storage_areas').filter(a=>a.is_active!==false&&a.warehouse_id===whId); const areaId=x.default_storage_area_id||areas.find(a=>a.legacy_zone_id===x.default_zone_id)?.id||''; const shelves=v5All('shelves').filter(sh=>sh.warehouse_id===whId&&(!areaId||sh.storage_area_id===areaId));
