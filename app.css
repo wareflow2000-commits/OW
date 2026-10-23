@@ -5274,7 +5274,11 @@ button, input, select, textarea {
 }
 /* Sidebar appearance follows the active theme palette; no fixed brand color. */
 .v13-sidebar, .sidebar {
-  background: var(--navy-primary, var(--sidebar, #071b32));
+  background: linear-gradient(
+    180deg,
+    var(--sidebar, var(--navy-primary, #071b32)) 0%,
+    var(--sidebar-2, var(--navy-dark, var(--navy-primary, #071b32))) 100%
+  );
   color: var(--sidebar-text, #e5edf7);
   border-color: color-mix(in srgb, currentColor 12%, transparent);
 }
@@ -5285,8 +5289,9 @@ button, input, select, textarea {
 .v13-sidebar .nav-btn.active, .sidebar .nav-btn.active,
 .v13-sidebar .nav-sub-btn.active, .sidebar .nav-sub-btn.active {
   background: var(--primary, var(--navy-light, #0874d1));
+  border-color: color-mix(in srgb, var(--primary, #0874d1) 72%, transparent);
   color: var(--sidebar-active-text, #fff);
-  box-shadow: none;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary, #0874d1) 22%, transparent);
 }
 /* Arabic RTL: sidebar on the right; English LTR: sidebar on the left. */
 .app-shell.rtl > .v13-sidebar, .app-shell.rtl > .sidebar {
