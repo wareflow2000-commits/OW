@@ -29,3 +29,12 @@
 2. Replace zone/section parameters in reports and posting/ledger helpers with storage-area/category identifiers while preserving wrapper compatibility.
 3. Decide and implement shared-area ownership model (association table plus warehouse-scoped shelves/stock) before relaxing location guards.
 4. Re-run ledger/stock reconciliation and security advisors, then remove legacy columns/tables only after zero live dependencies.
+
+
+## Follow-up UI compatibility changes (2026-10-23)
+- Item editor now selects a canonical `item_categories.id` and saves both `category_id` and the mirrored legacy `category` label. Database trigger `sync_item_category_refs` keeps the text label aligned.
+- Item default location now selects `storage_areas.id` and saves `default_storage_area_id`, while retaining the mapped `default_zone_id` for the existing compatibility trigger.
+- Shelf creation no longer requires a legacy section. It sets `section_id` to null when omitted and carries the canonical `storage_area_id` resolved from the selected legacy zone. This matches the current schema, where `shelves.section_id` is nullable and the demo dataset has no section records.
+- Applied the same targeted source transformations to the available v13.9.58 source snapshot and `node --check` passed. The exact current GitHub `app.js` was also re-fetched after each commit; no full browser end-to-end run was performed.
+- Current DB completeness check: 6/6 items have category IDs and default storage areas; 6/6 shelves, 9/9 stock rows, 25/25 transaction lines and 25/25 inventory-ledger rows have storage-area IDs. These are completeness checks, not full ledger certification.
+- Still not migrated: facility CRUD continues to create legacy zones which synchronize into storage areas; the legacy sections table, zone/section foreign keys, and old RPC signatures remain. Shared-area support remains a separate design/migration phase.
