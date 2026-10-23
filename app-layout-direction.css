@@ -1,0 +1,30 @@
+/* ORSHAP WMS v13.9.58 — desktop direction hotfix.
+   Kept isolated because legacy CSS contains later overrides; consolidate into app.css after visual QA. */
+@media (min-width: 801px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr) 248px !important;
+  }
+  .app-shell.rtl {
+    grid-template-columns: 248px minmax(0, 1fr) !important;
+  }
+  .app-shell .main {
+    grid-column: 1 !important;
+    grid-row: 1;
+  }
+  .app-shell.rtl .main {
+    grid-column: 2 !important;
+    grid-row: 1;
+  }
+  .app-shell.v13-collapsed {
+    grid-template-columns: minmax(0, 1fr) 68px !important;
+  }
+  .app-shell.v13-collapsed.rtl {
+    grid-template-columns: 68px minmax(0, 1fr) !important;
+  }
+  .app-shell.v13-collapsed .main {
+    grid-column: 1 !important;
+  }
+  .app-shell.v13-collapsed.rtl .main {
+    grid-column: 2 !important;
+  }
+}
