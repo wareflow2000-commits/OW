@@ -264,13 +264,23 @@ html.dark{--bg:#0a1220;--surface:#101c2d;--surface-2:#142238;--surface-3:#1b2b42
 html,body{width:100%;max-width:100%;overflow-x:hidden;scroll-behavior:smooth;-webkit-tap-highlight-color:transparent}
 button,input,select,textarea{min-width:0}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid color-mix(in srgb,var(--primary) 65%,white);outline-offset:2px}
-.app-shell{display:grid;grid-template-columns:minmax(0,1fr) 248px;min-height:100dvh;align-items:stretch;isolation:isolate}
-.app-shell.rtl{grid-template-columns:minmax(0,1fr) 248px}
-.app-shell.v13-collapsed,.app-shell.v13-collapsed.rtl{grid-template-columns:minmax(0,1fr) 68px!important}
-.app-shell.v13-collapsed .main,.app-shell.v13-collapsed.rtl .main{grid-column:1!important;min-width:0}
-.v13-sidebar,.sidebar{position:fixed!important;top:0!important;bottom:0!important;inset-inline-start:auto!important;inset-inline-end:0!important;width:248px!important;height:100dvh!important;max-height:100dvh;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;z-index:50!important;padding:16px 12px!important;border-inline-start:1px solid #ffffff0d;box-shadow:-8px 0 30px #06172a0b}
-.app-shell.v13-collapsed .v13-sidebar,.app-shell.v13-collapsed .sidebar{width:68px!important;min-width:68px!important;max-width:68px!important;padding:12px 8px!important}
-.v13-sidebar .brand,.sidebar .brand{padding:4px 6px 16px!important;gap:9px}
+/* Canonical application geometry — keep desktop direction and mobile drawer in one place. */
+html,body,#app{width:100%;max-width:100%;min-height:100%;margin:0}
+html,body{overflow-x:hidden;scroll-behavior:smooth;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{min-width:0;box-sizing:border-box}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid color-mix(in srgb,var(--primary) 65%,white);outline-offset:2px}
+.app-shell,.app-shell.rtl{display:block;position:relative;min-height:100dvh;width:100%;max-width:100%;isolation:isolate}
+.app-shell.v13-collapsed,.app-shell.v13-collapsed.rtl{display:block}
+.v13-sidebar,.sidebar{position:fixed;top:0;bottom:0;width:248px;min-width:248px;max-width:248px;height:100dvh;max-height:100dvh;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;z-index:50;padding:16px 12px;border-inline-start:1px solid #ffffff0d;box-shadow:0 8px 30px #06172a0b;box-sizing:border-box}
+.app-shell.rtl .v13-sidebar,.app-shell.rtl .sidebar{left:0;right:auto}
+.app-shell:not(.rtl) .v13-sidebar,.app-shell:not(.rtl) .sidebar{right:0;left:auto}
+.app-shell.v13-collapsed .v13-sidebar,.app-shell.v13-collapsed .sidebar{width:68px;min-width:68px;max-width:68px;padding:12px 8px}
+.app-shell.rtl .main{margin-left:248px;margin-right:0}
+.app-shell:not(.rtl) .main{margin-left:0;margin-right:248px}
+.app-shell.v13-collapsed.rtl .main{margin-left:68px;margin-right:0}
+.app-shell.v13-collapsed:not(.rtl) .main{margin-left:0;margin-right:68px}
+.main,.app-shell .main,.app-shell.rtl .main{display:flex;flex-direction:column;min-width:0;width:auto;max-width:none;min-height:100dvh;overflow-x:clip;box-sizing:border-box}
+.v13-sidebar .brand,.sidebar .brand{padding:4px 6px 16px;gap:9px}
 .v13-sidebar .brand-mark,.sidebar .brand-mark{width:34px;height:34px;flex:0 0 34px;border-radius:10px;box-shadow:0 5px 14px #0874d12b}
 .v13-sidebar .brand strong,.sidebar .brand strong{font-size:12px;letter-spacing:.015em}
 .v13-sidebar .brand small,.sidebar .brand small{font-size:9px}
@@ -283,7 +293,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .v13-sidebar .sidebar-footer,.sidebar .sidebar-footer{margin-top:16px;padding:12px 7px 6px;border-top-color:#ffffff12}
 .v13-sidebar .avatar,.sidebar .avatar{width:30px;height:30px;border-radius:9px}
 .v13-sidebar .logout,.sidebar .logout{padding:8px;margin-top:9px;border-radius:9px;font-size:10px}
-.main,.app-shell .main,.app-shell.rtl .main{grid-column:1!important;grid-row:1;min-width:0;width:100%;max-width:100%;overflow-x:clip}
 .v13-topbar,.topbar{position:sticky;top:0;z-index:40!important;width:100%;max-width:100%;min-width:0;height:62px;min-height:62px;padding:0 20px;gap:14px;display:flex;align-items:center;background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(16px);border-bottom:1px solid var(--line);box-shadow:0 2px 8px #0c234008}
 .v13-head-left{flex:0 1 auto;min-width:0}
 .v13-page-block{gap:9px;min-width:0}
@@ -350,9 +359,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .v13-drawer-overlay{backdrop-filter:blur(2px)}
 
 @media(min-width:801px){
-  .app-shell:not(.v13-collapsed) .v13-sidebar,.app-shell.v13-collapsed .v13-sidebar{top:0!important;height:100dvh!important;bottom:0!important}
   .v13-sidebar .v13-collapse{width:25px;height:25px;min-height:25px;border-radius:8px}
-  .app-shell.v13-collapsed .v13-sidebar .brand{justify-content:center;padding-inline:0!important}
+  .app-shell.v13-collapsed .v13-sidebar .brand{justify-content:center;padding-inline:0}
   .app-shell.v13-collapsed .v13-sidebar .v13-collapse{inset-inline-end:3px;top:4px}
   .v13-backtop{width:36px;height:36px;bottom:18px;inset-inline-end:18px;border-radius:11px}
 }
@@ -367,8 +375,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 }
 @media(max-width:800px){
   html,body{overscroll-behavior-y:contain}
-  .app-shell,.app-shell.rtl,.app-shell.v13-collapsed,.app-shell.v13-collapsed.rtl{display:block!important;min-height:100dvh;grid-template-columns:minmax(0,1fr)!important}
-  .app-shell .main,.app-shell.rtl .main,.app-shell.v13-collapsed .main,.app-shell.v13-collapsed.rtl .main{display:block!important;width:100%;max-width:100%;min-width:0;grid-column:auto!important;grid-row:auto;overflow-x:clip}
+  .app-shell,.app-shell.rtl,.app-shell.v13-collapsed,.app-shell.v13-collapsed.rtl{display:block;min-height:100dvh}
+  .app-shell .main,.app-shell.rtl .main,.app-shell.v13-collapsed .main,.app-shell.v13-collapsed.rtl .main{display:block;width:100%;max-width:100%;min-width:0;margin:0;overflow-x:clip}
   .v13-sidebar,.sidebar{top:0!important;bottom:0!important;inset-inline-start:auto!important;inset-inline-end:0!important;width:min(292px,86vw)!important;height:100dvh!important;max-height:100dvh;padding:17px 13px!important;transform:translateX(110%);z-index:140!important;border:0;border-inline-start:1px solid #ffffff12;box-shadow:-18px 0 48px #0003}
   html[dir="ltr"] .v13-sidebar,html[dir="ltr"] .sidebar{inset-inline-start:0!important;inset-inline-end:auto!important;transform:translateX(-110%)}
   .rtl .v13-sidebar,.rtl .sidebar{transform:translateX(110%)}
@@ -812,50 +820,3 @@ html[dir="rtl"] .login-submit span{transform:scaleX(-1)}
 .c10-report-results .table{min-width:760px}
 @media(max-width:1050px){.c10-report-catalog{grid-template-columns:repeat(2,minmax(0,1fr))}.c10-report-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.c10-report-catalog{grid-template-columns:1fr;gap:10px}.c10-report-card{min-height:0;padding:15px}.c10-report-filter-grid{grid-template-columns:1fr}.c10-report-filter-actions{display:grid;grid-template-columns:1fr}.c10-report-filter-actions .btn{width:100%}.c10-report-results-head{gap:8px}.c10-report-results-head strong{width:100%}}
-
-
-/* ORSHAP WMS v13.9.58 — consolidated layout guard
-   This block intentionally overrides legacy layout declarations above. */
-html,body,#app{min-height:100%;width:100%;max-width:100%;margin:0}
-body{overflow-x:hidden}
-#app{min-width:0;overflow-x:clip}
-.app-shell{display:block!important;position:relative;min-height:100dvh;width:100%;max-width:100%;isolation:isolate;overflow:clip}
-.sidebar{position:fixed!important;inset-block:0!important;inset-inline-start:0!important;inset-inline-end:auto!important;top:0!important;bottom:0!important;width:260px!important;min-width:260px!important;max-width:260px!important;height:100dvh!important;max-height:100dvh!important;overflow-x:hidden!important;overflow-y:auto!important;z-index:80!important;box-sizing:border-box!important}
-.app-shell:not(.rtl) .sidebar{left:0!important;right:auto!important}
-.app-shell.rtl .sidebar{right:0!important;left:auto!important}
-.main{display:flex;flex-direction:column;min-width:0!important;width:auto!important;max-width:none!important;min-height:100dvh;margin-inline-start:260px!important;margin-inline-end:0!important;overflow-x:clip!important;overflow-y:visible!important;box-sizing:border-box!important}
-.app-shell.rtl .main{margin-inline-start:260px!important;margin-inline-end:0!important}
-.app-shell.v13-collapsed .sidebar,.app-shell:has(.sidebar.collapsed) .sidebar{width:68px!important;min-width:68px!important;max-width:68px!important}
-.app-shell.v13-collapsed .main{margin-inline-start:68px!important}
-.main>.topbar{position:sticky!important;inset-block-start:0!important;z-index:70!important;flex:0 0 auto;min-width:0;width:100%;max-width:100%;box-sizing:border-box}
-.main>.page{flex:1 0 auto;min-width:0;width:100%;max-width:none;margin:0;box-sizing:border-box;overflow:visible}
-.page>*{min-width:0;max-width:100%}
-.page-head{min-width:0;max-width:100%;flex-wrap:wrap}
-.page-head>*{min-width:0;max-width:100%}
-.grid,.grid-2,.grid-3,.grid-4,.v13-hero-grid,.v13-easy-grid,.c10-report-catalog{min-width:0;max-width:100%}
-.card,.panel,.table-wrap,.table-responsive,.c10-report-results{min-width:0;max-width:100%;box-sizing:border-box}
-.table-wrap,.table-responsive{overflow:auto!important;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-.table{max-width:100%;border-collapse:separate;border-spacing:0}
-input,select,textarea,button{max-width:100%;box-sizing:border-box}
-input,select,textarea{min-width:0}
-#modal-root{position:relative;z-index:200}
-.modal-backdrop{position:fixed!important;inset:0!important;z-index:200!important;box-sizing:border-box;overflow:auto!important;overscroll-behavior:contain}
-.modal{box-sizing:border-box;min-width:0;max-width:min(960px,100%);max-height:calc(100dvh - 32px)!important;overflow:auto!important;overscroll-behavior:contain}
-@media(max-width:760px){
- .app-shell{display:block!important;min-height:100dvh;overflow:clip}
- .sidebar{display:none!important}
- .main,.app-shell.rtl .main{display:flex!important;width:100%!important;max-width:100%!important;margin:0!important;min-height:100dvh!important}
- .main>.topbar{position:fixed!important;inset-block-start:0!important;inset-inline:0!important;width:100%!important;max-width:100%!important;min-height:54px;height:auto;z-index:120!important}
- .main>.page{padding-top:calc(64px + env(safe-area-inset-top,0px));padding-inline:12px;padding-bottom:calc(94px + env(safe-area-inset-bottom,0px));min-height:100dvh}
- .grid-4,.grid-3{grid-template-columns:repeat(2,minmax(0,1fr))!important}
- .grid-2{grid-template-columns:minmax(0,1fr)!important}
- .page-head{align-items:stretch;gap:10px}
- .page-head .actions,.page-head .actions-row{width:100%;max-width:100%;flex-wrap:wrap}
- .table-wrap,.table-responsive{max-width:100%!important}
- .modal-backdrop{align-items:flex-end!important;padding:8px!important}
- .modal{width:100%!important;max-width:100%!important;max-height:calc(100dvh - 16px)!important;border-radius:16px 16px 8px 8px!important}
-}
-@media(min-width:761px){
- .main>.topbar{position:sticky!important}
- .main>.page{padding-top:20px}
-}
