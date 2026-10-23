@@ -5272,6 +5272,22 @@ button, input, select, textarea {
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
+/* Sidebar appearance follows the active theme palette; no fixed brand color. */
+.v13-sidebar, .sidebar {
+  background: var(--navy-primary, var(--sidebar, #071b32));
+  color: var(--sidebar-text, #e5edf7);
+  border-color: color-mix(in srgb, currentColor 12%, transparent);
+}
+.v13-sidebar .nav-btn, .sidebar .nav-btn,
+.v13-sidebar .nav-sub-btn, .sidebar .nav-sub-btn {
+  color: inherit;
+}
+.v13-sidebar .nav-btn.active, .sidebar .nav-btn.active,
+.v13-sidebar .nav-sub-btn.active, .sidebar .nav-sub-btn.active {
+  background: var(--primary, var(--navy-light, #0874d1));
+  color: var(--sidebar-active-text, #fff);
+  box-shadow: none;
+}
 /* Arabic RTL: sidebar on the right; English LTR: sidebar on the left. */
 .app-shell.rtl > .v13-sidebar, .app-shell.rtl > .sidebar {
   left: auto;
