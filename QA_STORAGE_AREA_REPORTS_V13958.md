@@ -38,3 +38,5 @@
 - Applied the same targeted source transformations to the available v13.9.58 source snapshot and `node --check` passed. The exact current GitHub `app.js` was also re-fetched after each commit; no full browser end-to-end run was performed.
 - Current DB completeness check: 6/6 items have category IDs and default storage areas; 6/6 shelves, 9/9 stock rows, 25/25 transaction lines and 25/25 inventory-ledger rows have storage-area IDs. These are completeness checks, not full ledger certification.
 - Still not migrated: facility CRUD continues to create legacy zones which synchronize into storage areas; the legacy sections table, zone/section foreign keys, and old RPC signatures remain. Shared-area support remains a separate design/migration phase.
+
+- Added and verified a canonical unique index on `shelves(storage_area_id, code)` (partial for non-null areas). Preflight found no duplicate pairs. The legacy `(zone_id, code)` uniqueness remains for compatibility until zone dependencies are removed.
