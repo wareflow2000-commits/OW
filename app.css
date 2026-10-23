@@ -4476,9 +4476,8 @@ html, body {
   }
 }
 .v13-sidebar,.sidebar {
-  border-inline-start: 0 !important;
-  border-inline-end: 1px solid #ffffff0d !important;
-  box-shadow: 8px 0 30px #06172a0b !important;
+  border-inline-start: 0;
+  border-inline-end: 0;
 }
 .v13-theme-icon {
   width:18px;
@@ -5269,19 +5268,20 @@ button, input, select, textarea {
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
+/* Arabic RTL: sidebar on the right; English LTR: sidebar on the left. */
 .app-shell.rtl > .v13-sidebar, .app-shell.rtl > .sidebar {
-  left: 0;
-  right: auto;
-  border-left: 1px solid #ffffff12;
-  border-right: 0;
-  box-shadow: 8px 0 30px #06172a0b;
-}
-.app-shell:not(.rtl) > .v13-sidebar, .app-shell:not(.rtl) > .sidebar {
   left: auto;
   right: 0;
   border-left: 0;
   border-right: 1px solid #ffffff12;
   box-shadow: -8px 0 30px #06172a0b;
+}
+.app-shell:not(.rtl) > .v13-sidebar, .app-shell:not(.rtl) > .sidebar {
+  left: 0;
+  right: auto;
+  border-left: 1px solid #ffffff12;
+  border-right: 0;
+  box-shadow: 8px 0 30px #06172a0b;
 }
 .app-shell.v13-collapsed .v13-sidebar, .app-shell.v13-collapsed .sidebar, .v13-sidebar.collapsed, .sidebar.collapsed {
   width: var(--app-sidebar-collapsed-width);
@@ -5289,18 +5289,18 @@ button, input, select, textarea {
   max-width: var(--app-sidebar-collapsed-width);
 }
 .app-shell.rtl > .main {
-  margin: 0 0 0 var(--app-sidebar-width);
-}
-.app-shell:not(.rtl) > .main {
   margin: 0 var(--app-sidebar-width) 0 0;
 }
-.app-shell.v13-collapsed.rtl > .main {
-  margin-left: var(--app-sidebar-collapsed-width);
-  margin-right: 0;
+.app-shell:not(.rtl) > .main {
+  margin: 0 0 0 var(--app-sidebar-width);
 }
-.app-shell.v13-collapsed:not(.rtl) > .main {
+.app-shell.v13-collapsed.rtl > .main {
   margin-right: var(--app-sidebar-collapsed-width);
   margin-left: 0;
+}
+.app-shell.v13-collapsed:not(.rtl) > .main {
+  margin-left: var(--app-sidebar-collapsed-width);
+  margin-right: 0;
 }
 /* Desktop uses a viewport-sized shell and a single content scroll container. */
 .main, .app-shell > .main {
