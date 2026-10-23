@@ -252,7 +252,7 @@ function v8Inventory(){
     const qty=stocks.reduce((n,st)=>n+Number(st.quantity||0),0);
     const warehouses=locationNames(stocks,'warehouse_id',sh=>v5Find('warehouses',sh?.warehouse_id)?.name);
     const zones=locationNames(stocks,'storage_area_id',sh=>v5Find('storage_areas',sh?.storage_area_id)?.name);
-    const sections=(v5Find('item_categories',i.category_id)||{}).name||i.category||'-';
+    const sections=esc((v5Find('item_categories',i.category_id)||{}).name||i.category||'-');
     const shelves=locationNames(stocks,'shelf_id',sh=>sh?.code||sh?.full_path);
     const defaultWh=v5Find('warehouses',i.default_warehouse_id)?.name;
     const defaultZone=(v5Find('storage_areas',i.default_storage_area_id)||v5All('storage_areas').find(a=>a.legacy_zone_id===i.default_zone_id)||{}).name;
