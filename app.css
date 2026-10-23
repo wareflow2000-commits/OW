@@ -5292,19 +5292,30 @@ button, input, select, textarea {
   min-width: var(--app-sidebar-collapsed-width);
   max-width: var(--app-sidebar-collapsed-width);
 }
+/* Keep the entire main column (topbar + page) strictly beside the sidebar. */
 .app-shell.rtl > .main {
-  margin: 0 var(--app-sidebar-width) 0 0;
+  position: absolute;
+  top: 0;
+  right: var(--app-sidebar-width);
+  left: 0;
+  width: auto;
+  margin: 0;
 }
 .app-shell:not(.rtl) > .main {
-  margin: 0 0 0 var(--app-sidebar-width);
+  position: absolute;
+  top: 0;
+  left: var(--app-sidebar-width);
+  right: 0;
+  width: auto;
+  margin: 0;
 }
 .app-shell.v13-collapsed.rtl > .main {
-  margin-right: var(--app-sidebar-collapsed-width);
-  margin-left: 0;
+  right: var(--app-sidebar-collapsed-width);
+  left: 0;
 }
 .app-shell.v13-collapsed:not(.rtl) > .main {
-  margin-left: var(--app-sidebar-collapsed-width);
-  margin-right: 0;
+  left: var(--app-sidebar-collapsed-width);
+  right: 0;
 }
 /* Desktop frame: viewport-fixed dimensions; only .page scrolls. */
 .main, .app-shell > .main {
@@ -5423,6 +5434,10 @@ button, input, select, textarea {
     display: none !important;
   }
   .app-shell.rtl > .main, .app-shell:not(.rtl) > .main, .app-shell.v13-collapsed.rtl > .main, .app-shell.v13-collapsed:not(.rtl) > .main {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
     display: block;
     width: 100%;
     max-width: 100%;
