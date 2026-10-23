@@ -5218,12 +5218,12 @@ html[dir="rtl"] .login-submit span {
 /* ==========================================================================
    ORSHAP WMS — canonical application layout
    One source of truth for viewport, desktop shell, mobile shell and scrolling.
-   RTL (Arabic): sidebar on the left. LTR (English): sidebar on the right.
+   RTL (Arabic): sidebar on the right. LTR (English): sidebar on the left.
    ========================================================================== */
 :root {
-  --app-sidebar-width: 248px;
+  --app-sidebar-width: 240px;
   --app-sidebar-collapsed-width: 68px;
-  --app-header-height: 62px;
+  --app-header-height: 64px;
   --app-mobile-header-height: 110px;
   --app-mobile-nav-height: 68px;
 }
@@ -5237,7 +5237,8 @@ html, body, #app {
   margin: 0;
 }
 html, body {
-  overflow-x: hidden;
+  overflow: hidden;
+  overscroll-behavior: none;
   scroll-behavior: smooth;
 }
 button, input, select, textarea {
@@ -5249,7 +5250,9 @@ button, input, select, textarea {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  min-height: 100dvh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   isolation: isolate;
 }
 .v13-sidebar, .sidebar {
@@ -5333,12 +5336,12 @@ button, input, select, textarea {
   display: block;
   flex: 1 1 auto;
   width: 100%;
-  max-width: 1800px;
+  max-width: none;
   min-width: 0;
   min-height: 0;
   height: auto;
-  margin: 0 auto;
-  padding: 20px 24px 28px;
+  margin: 0;
+  padding: var(--app-content-padding);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior-y: contain;
