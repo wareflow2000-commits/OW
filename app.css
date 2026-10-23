@@ -5226,6 +5226,7 @@ html[dir="rtl"] .login-submit span {
   --app-header-height: 64px;
   --app-mobile-header-height: 110px;
   --app-mobile-nav-height: 68px;
+  --app-content-padding: 32px;
 }
 *, *::before, *::after {
   box-sizing: border-box;
