@@ -5,6 +5,7 @@
 - Uses `inventory_ledger.storage_area_id`, `stock.storage_area_id`, and `item_categories` for report filtering and labels.
 - Checks active authenticated profile, report permission, assigned warehouse scope, date range, and the current storage-area owner relation.
 - Removes anonymous/PUBLIC execution on the new RPC; grants execution to authenticated and service_role.
+- Adds an Accounting Stock Summary report to the v13.9.58 report center; it calls the database RPC and supports storage-area and item-category filters.
 - Updates report UI filters in `app.js` to use `storage_areas` and `shelves.storage_area_id`, not legacy `zones` IDs, for report location filtering.
 
 ## Verification performed
@@ -13,7 +14,7 @@
 - RPC call returned two matching sample items for the selected warehouse/storage area.
 - Category filter returned only the two items in the selected category.
 - Privileges verified: `anon` cannot execute; `authenticated` and `service_role` can execute.
-- Local `node --check app.js` passed after applying the same targeted replacements.
+- Local `node --check app.js` passed after applying the targeted report-filter and RPC integration changes.
 - Existing data and stock balances were not changed by the report query tests.
 
 ## Explicitly not included
