@@ -2466,12 +2466,7 @@ html[dir="ltr"] .v13-txn-editor,html[dir="ltr"] .v13-txn-preview {
 }
 /* v13.9.14 desktop sidebar collapse hardening */
 @media (min-width:801px) {
-  .app-shell.v13-collapsed {
-    grid-template-columns:70px minmax(0,1fr)!important;
-  }
-  .app-shell.v13-collapsed.rtl {
-    grid-template-columns:minmax(0,1fr) 70px!important;
-  }
+  /* The shell uses fixed sidebar + positioned main column, not CSS grid columns. */
   .app-shell.v13-collapsed .v13-sidebar {
     width:70px!important;
     min-width:70px!important;
@@ -2511,27 +2506,8 @@ html[dir="ltr"] .v13-txn-editor,html[dir="ltr"] .v13-txn-preview {
   width:100%;
   min-height:44px;
 }
-/* v13.9.17 design-only refinements: stable desktop sidebar geometry */
+/* Desktop header controls: geometry is owned by the canonical layout section. */
 @media (min-width:801px) {
-  .app-shell:not(.v13-collapsed) .v13-sidebar {
-    top:72px!important;
-    height:calc(100vh - 72px)!important;
-    bottom:auto!important;
-    z-index:18!important;
-  }
-  .app-shell.v13-collapsed .v13-sidebar {
-    top:72px!important;
-    height:calc(100vh - 72px)!important;
-    bottom:auto!important;
-    z-index:18!important;
-  }
-  .v13-topbar {
-    position:sticky;
-    top:0;
-    z-index:45!important;
-    min-width:0;
-    max-width:100%;
-  }
   .v13-head-right {
     min-width:0;
     flex-wrap:nowrap;
