@@ -300,7 +300,7 @@ handleAction=function(a){
 };
 const __v8Inventory=inventory; inventory=v8Inventory; const __v8Facilities=facilities; facilities=v8Facilities;
 document.addEventListener('input',e=>{if(e.target.matches('[data-v8-item-search]')){state.v8ItemSearch=e.target.value;render()}});
-document.addEventListener('change',e=>{if(e.target.matches('[name="v8-filter-wh"]')){state.v8InvWh=e.target.value;render()}if(e.target.matches('[name="v8-wid"]')){state.v8FacilityWarehouseId=e.target.value;render()} });
+document.addEventListener('change',e=>{if(e.target.matches('[name="v8-filter-wh"]')){state.v8InvWh=e.target.value;render()}if(e.target.matches('[name="v8-wid"]')){state.v8FacilityWarehouseId=e.target.value;render()}if(e.target.matches('#v8-facility-form select[name="warehouse_id"]')&&state.v8FacilityKind==='shelf'){const areaSelect=document.querySelector('#v8-facility-form select[name="storage_area_id"]');if(areaSelect){const areas=v5All('storage_areas').filter(a=>a.is_active!==false&&String(a.warehouse_id)===String(e.target.value));areaSelect.innerHTML=`<option value="">${esc(T().select)}</option>${v8Opts(areas,'',a=>`${a.name} (${a.code})`)}`;}} });
 
 /* ===== V6 resilient bootstrap ===== */
 (function boot(){
