@@ -5314,9 +5314,12 @@ button, input, select, textarea {
   left: var(--app-sidebar-collapsed-width);
   right: 0;
 }
-/* Desktop frame: viewport-fixed dimensions; only .page scrolls. */
+/* Desktop frame: one full-height main column beside the fixed sidebar.
+   The logical/physical side offsets above define its exact available width. */
 .main, .app-shell > .main {
-  position: relative;
+  position: absolute;
+  top: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
   width: auto;
@@ -5324,7 +5327,8 @@ button, input, select, textarea {
   min-width: 0;
   height: 100dvh;
   min-height: 0;
-  margin-block: 0;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
 }
 .v13-topbar, .topbar {
@@ -5334,25 +5338,29 @@ button, input, select, textarea {
   flex: 0 0 var(--app-header-height);
   align-items: center;
   gap: 12px;
+  align-self: stretch;
+  flex-shrink: 0;
   width: 100%;
-  max-width: 100%;
+  max-width: none;
   min-width: 0;
   height: var(--app-header-height);
   min-height: var(--app-header-height);
   margin: 0;
   padding: 0 20px;
+  box-sizing: border-box;
   overflow: visible;
 }
 .page {
   display: block;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   width: 100%;
   max-width: none;
   min-width: 0;
   min-height: 0;
-  height: auto;
+  height: 0;
   margin: 0;
   padding: var(--app-content-padding);
+  box-sizing: border-box;
   overflow-x: auto;
   overflow-y: auto;
   overscroll-behavior: contain;
