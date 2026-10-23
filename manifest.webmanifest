@@ -1,0 +1,13 @@
+{
+  "name": "ORSHAP Warehouse Management System",
+  "short_name": "ORSHAP WMS",
+  "description": "Warehouse management system with local storage and Supabase synchronization",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#001f3f",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": []
+}
