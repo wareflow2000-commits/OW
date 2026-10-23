@@ -40,3 +40,5 @@
 - Still not migrated: facility CRUD continues to create legacy zones which synchronize into storage areas; the legacy sections table, zone/section foreign keys, and old RPC signatures remain. Shared-area support remains a separate design/migration phase.
 
 - Added and verified a canonical unique index on `shelves(storage_area_id, code)` (partial for non-null areas). Preflight found no duplicate pairs. The legacy `(zone_id, code)` uniqueness remains for compatibility until zone dependencies are removed.
+
+- Updated the inventory table to display the canonical storage-area name and item category rather than legacy zone/section labels. Category labels are HTML-escaped before rendering.
