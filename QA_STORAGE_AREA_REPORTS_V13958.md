@@ -42,3 +42,7 @@
 - Added and verified a canonical unique index on `shelves(storage_area_id, code)` (partial for non-null areas). Preflight found no duplicate pairs. The legacy `(zone_id, code)` uniqueness remains for compatibility until zone dependencies are removed.
 
 - Updated the inventory table to display the canonical storage-area name and item category rather than legacy zone/section labels. Category labels are HTML-escaped before rendering.
+
+- Updated shelf creation to select `storage_areas.id` directly, validate that the selected area belongs to the chosen warehouse, and reject duplicate shelf codes within that area before queuing the record.
+- The shelf modal now refreshes its storage-area options when the warehouse selector changes. It no longer requires the user to pick a legacy zone or section for a new shelf.
+- Compatibility note: the existing sync layer still writes the legacy `zone_id` when a mapped zone exists; the new UI does not remove legacy database dependencies.
