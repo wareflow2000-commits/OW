@@ -242,7 +242,7 @@ function v8SaveItem(){
 function v8OpenFacility(kind,id){
   v8Ensure();
   const t=T(), whs=v5All('warehouses').filter(w=>c10AccessibleWarehouse(w.id));
-  const wid=state.v8FacilityWarehouseId||(whs.length===1?whs[0].id:''),x=kind==='storage_area'?v5Find('storage_areas',id)||{}:kind==='section'?v5Find('item_categories',id)||{}:kind==='shelf'?v5Find('shelves',id)||{}:{};
+  const wid=state.v8FacilityWarehouseId||(whs.length===1?whs[0].id:''),x=kind==='storage_area'?v5Find('storage_areas',id)||{}:kind==='item_category'?v5Find('item_categories',id)||{}:kind==='shelf'?v5Find('shelves',id)||{}:{};
   let title='',body='';state.v8FacilityKind=kind;
   if(kind==='zone'){v8Err(state.lang==='ar'?'إنشاء المناطق القديمة متوقف. استخدم مناطق التخزين.':'Legacy zones are retired. Use storage areas instead.');return}
   if(kind==='warehouse'){title=t.addWarehouse;body=`<form id="v8-facility-form" class="form-grid">${v8Field(t.name,'name','')}${v8Field(t.code,'code','')}</form>`}
@@ -250,7 +250,7 @@ function v8OpenFacility(kind,id){
     state.v8EditingAreaId=id||null;title=id?(state.lang==='ar'?'تعديل منطقة التخزين':'Edit Storage Area'):(state.lang==='ar'?'إضافة منطقة تخزين':'Add Storage Area');
     body=`<form id="v8-facility-form" class="form-grid">${v8Select(t.warehouse,'warehouse_id',whs,x.warehouse_id||wid,w=>`${w.name} (${w.code})`)}${v8Field(t.code,'code',x.code||'')}${v8Field(t.name,'name',x.name||'')}${v8Select(state.lang==='ar'?'الحالة':'Status','is_active',[{id:'true',name:state.lang==='ar'?'نشطة':'Active'},{id:'false',name:state.lang==='ar'?'موقوفة':'Inactive'}],x.is_active===false?'false':'true',a=>a.name)}<p class="muted full">${state.lang==='ar'?'منطقة التخزين هي المستوى الفعلي بين المستودع والرف. رابط المنطقة القديمة اختياري للتوافق مع السجلات السابقة.':'Storage area is the physical level between warehouse and shelf. Legacy-zone mapping is optional for compatibility with historical records.'}</p></form>`;
   }
-  if(kind==='section'){
+  if(kind==='item_category'){
     state.v8EditingCategoryId=id||null;title=id?(state.lang==='ar'?'تعديل تصنيف صنف':'Edit Item Category'):(state.lang==='ar'?'إضافة تصنيف صنف':'Add Item Category');
     body=`<form id="v8-facility-form" class="form-grid">${v8Field(t.code,'code',x.code||'')}${v8Field(t.name,'name',x.name||'')}${v8Field(state.lang==='ar'?'الوصف':'Description','description',x.description||'')}${v8Select(state.lang==='ar'?'الحالة':'Status','is_active',[{id:'true',name:state.lang==='ar'?'نشط':'Active'},{id:'false',name:state.lang==='ar'?'موقوف':'Inactive'}],x.is_active===false?'false':'true',a=>a.name)}<p class="muted full">${state.lang==='ar'?'التصنيف يصف نوع الصنف ولا يرتبط بمستودع أو منطقة تخزين.':'A category classifies the item and is not tied to a warehouse or storage area.'}</p></form>`;
   }
@@ -265,7 +265,7 @@ function v8SaveFacility(kind){
   const form=document.getElementById('v8-facility-form');if(!form)return;
   const o=Object.fromEntries(new FormData(form).entries());let obj,id,old;
   if(kind==='zone'){v8Err(state.lang==='ar'?'إنشاء المناطق القديمة متوقف.':'Legacy zones are retired.');return}
-  if(kind==='section'){
+  if(kind==='item_category'){
     const editId=state.v8EditingCategoryId||null;old=editId?v5Find('item_categories',editId):null;
     if(!orshapCanPermission(old?'action:item:update':'action:item:create')){v8Err(state.lang==='ar'?'ليست لديك صلاحية إدارة تصنيفات الأصناف':'You do not have permission to manage item categories');return}
     if(!o.name?.trim()||!o.code?.trim()){v8Err(state.lang==='ar'?'أدخل اسم ورمز التصنيف':'Enter category name and code');return}
@@ -299,7 +299,7 @@ function v8SelectWarehouse(id){state.v8FacilityWarehouseId=id;render()}
 function v8DeleteItem(id){const item=v5Find('items',id);if(!item)return;if(v5All('stock').some(s=>s.item_id===id&&Number(s.quantity)>0)){v8Err(state.lang==='ar'?'لا يمكن حذف صنف لديه رصيد. قم بتصفيره أولاً.':'Cannot delete an item with stock. Zero the stock first.');return}if(!confirm(state.lang==='ar'?'هل تريد حذف الصنف؟':'Delete this item?'))return;V5_DB.items=V5_DB.items.filter(x=>x.id!==id);v7Audit('DELETE','items',id,{code:item.code});v7Queue('items','DELETE',{id});v5Save();toast(state.lang==='ar'?'تم حذف الصنف':'Item deleted');render()}
 const __v8Handle=handleAction;
 handleAction=function(a){
-  if(a==='v8-open-wh'){v8OpenFacility('warehouse');return} if(a==='v8-open-zone'||a==='open-zone'){v8Err(state.lang==='ar'?'المناطق القديمة مخفية؛ استخدم مناطق التخزين.':'Legacy zones are hidden; use storage areas.');return} if(a==='v8-open-area'){v8OpenFacility('storage_area');return} if(a.startsWith('v8-edit-area:')){v8OpenFacility('storage_area',a.split(':')[1]);return} if(a==='v8-open-section'||a==='open-section'){v8OpenFacility('section');return} if(a.startsWith('v8-edit-category:')){v8OpenFacility('section',a.split(':')[1]);return} if(a==='v8-open-shelf'||a==='open-shelf'){v8OpenFacility('shelf');return} if(a.startsWith('v8-edit-shelf:')){v8OpenFacility('shelf',a.split(':')[1]);return}
+  if(a==='v8-open-wh'){v8OpenFacility('warehouse');return} if(a==='v8-open-zone'||a==='open-zone'){v8Err(state.lang==='ar'?'المناطق القديمة مخفية؛ استخدم مناطق التخزين.':'Legacy zones are hidden; use storage areas.');return} if(a==='v8-open-area'){v8OpenFacility('storage_area');return} if(a.startsWith('v8-edit-area:')){v8OpenFacility('storage_area',a.split(':')[1]);return} if(a==='v8-open-section'||a==='open-section'){v8OpenFacility('section');return} if(a.startsWith('v8-edit-category:')){v8OpenFacility('item_category',a.split(':')[1]);return} if(a==='v8-open-shelf'||a==='open-shelf'){v8OpenFacility('shelf');return} if(a.startsWith('v8-edit-shelf:')){v8OpenFacility('shelf',a.split(':')[1]);return}
   if(a.startsWith('v8-select-wh:')){v8SelectWarehouse(a.split(':')[1]);return}
   if(a==='open-item'||a==='v8-open-item'){v8ItemModal();return} if(a.startsWith('v8-edit-item:')){v8ItemModal(a.split(':')[1]);return} if(a.startsWith('v8-delete-item:')){v8DeleteItem(a.split(':')[1]);return}
   if(a==='v8-save-facility'){try{v8SaveFacility(state.v8FacilityKind)}catch(e){v8Err(e.message||String(e))}return}
