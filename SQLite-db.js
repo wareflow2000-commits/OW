@@ -5,7 +5,7 @@ function bootOptionalSQLite(){
 */
 (function(){
   const DB_FILE='orshap-wms.sqlite';
-  const TABLES=['profiles','warehouses','zones','sections','shelves','items','units','item_unit_conversions','stock','transactions','transaction_lines','stocktake_sessions','stocktake_lines','audit_logs','inventory_ledger','system_settings','print_config','display_config','sync_queue'];
+  const TABLES=['profiles','warehouses','shelves','items','units','item_unit_conversions','stock','transactions','transaction_lines','stocktake_sessions','stocktake_lines','audit_logs','inventory_ledger','system_settings','print_config','display_config','sync_queue'];
   let SQL=null, db=null;
   const schema=`CREATE TABLE IF NOT EXISTS kv_state (id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL, updated_at TEXT NOT NULL);`+
     TABLES.map(t=>`CREATE TABLE IF NOT EXISTS ${t.replace(/[^a-z0-9_]/gi,'_')} (id TEXT PRIMARY KEY, payload TEXT NOT NULL);`).join('');
@@ -18,6 +18,9 @@ function bootOptionalSQLite(){
     if(!window.initSqlJs) throw new Error('SQLite WASM loader unavailable');
     SQL=await window.initSqlJs({locateFile:f=>'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/'+f});
     const bytes=await opfsRead(); db=bytes?new SQL.Database(bytes):new SQL.Database(); db.run(schema);
+    // Retire obsolete local entity tables; historical transaction payloads remain intact.
+    db.run('DROP TABLE IF EXISTS zones');
+    db.run('DROP TABLE IF EXISTS sections');
     window.orshapSQLite.status='ready';
   }
   let readyPromise;
@@ -25,15 +28,23 @@ function bootOptionalSQLite(){
   async function loadState(){
     await ensureReady();
     const r=db.exec('SELECT payload FROM kv_state WHERE id=1');
-    if(!r.length)return null; try{return JSON.parse(r[0].values[0][0])}catch(e){return null}
+    if(!r.length)return null;
+    try{
+      const state=JSON.parse(r[0].values[0][0]);
+      if(state&&typeof state==='object'){delete state.zones;delete state.sections;}
+      return state;
+    }catch(e){return null}
   }
   async function saveState(state){
     await ensureReady();
+    const canonicalState={...state};
+    delete canonicalState.zones;
+    delete canonicalState.sections;
     const now=new Date().toISOString();
     db.run('BEGIN');
     try{
-      for(const t of TABLES){exec('DELETE FROM '+t); for(const x of arr(state[t]||[])){const id=String(x.id||crypto.randomUUID());exec('INSERT OR REPLACE INTO '+t+'(id,payload) VALUES (?,?)',[id,JSON.stringify(x)]);}}
-      exec('INSERT OR REPLACE INTO kv_state(id,payload,updated_at) VALUES(1,?,?)',[JSON.stringify(state),now]);
+      for(const t of TABLES){exec('DELETE FROM '+t); for(const x of arr(canonicalState[t]||[])){const id=String(x.id||crypto.randomUUID());exec('INSERT OR REPLACE INTO '+t+'(id,payload) VALUES (?,?)',[id,JSON.stringify(x)]);}}
+      exec('INSERT OR REPLACE INTO kv_state(id,payload,updated_at) VALUES(1,?,?)',[JSON.stringify(canonicalState),now]);
       db.run('COMMIT');
       const bytes=db.export();
       try{await opfsWrite(bytes); localStorage.setItem('orshap_storage_engine','sqlite-opfs')}catch(e){localStorage.setItem('orshap_storage_engine','sqlite-wasm-memory');}
