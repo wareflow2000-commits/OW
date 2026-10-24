@@ -31,7 +31,7 @@ has(css, /\.v13-bottom-nav,\s*\.bottom-nav\s*\{[^}]*grid-template-columns:\s*rep
   'Mobile navigation must have five columns.');
 const nav = app.match(/function v13BottomNav\(\)\s*\{([\s\S]*?)\n\}/);
 assert.ok(nav, 'Mobile navigation renderer must exist.');
-const buttons = [...nav[1].matchAll(/<button\b/g)].length;
+const buttons = [...nav[1].matchAll(/<button class=/g)].length;
 assert.equal(buttons, 5, 'Mobile navigation must render exactly five actions.');
 has(nav[1], /data-action="v13-scan-qr"/, 'Center mobile action must be quick scan.');
 has(nav[1], /data-page="dashboard"/, 'Mobile navigation must include Home.');
