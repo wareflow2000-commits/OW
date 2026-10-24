@@ -1382,8 +1382,9 @@ document.addEventListener('change',e=>{
    txModal();return;
  }
  if(el.closest('#v12-tx-form')&&el.name==='transaction_type'){
-   v13SyncTxLinesFromForm();state.v12TxMeta={...(state.v12TxMeta||{}),transaction_type:el.value};
+   v13SyncTxLinesFromForm();
    const f=document.getElementById('v12-tx-form'),o=Object.fromEntries(new FormData(f).entries());
+   state.v12TxMeta={...(state.v12TxMeta||{}),...o,transaction_type:el.value};
    state.v13NewTxMovement={...(state.v13NewTxMovement||{}),...Object.fromEntries(['source_warehouse_id','source_area_id','source_shelf_id','destination_warehouse_id','destination_area_id','destination_shelf_id'].map(k=>[k,o[k]||'']))};
    if(['TRANSFER','RETURN_TO_LOCATION','RETURN_TO_SUPPLIER','RETURN_FROM_USAGE','RETURN_FROM_CUSTOMER'].includes(el.value)){const supplierReturn=el.value==='RETURN_TO_SUPPLIER',sourceMode=el.value==='TRANSFER'||supplierReturn;for(const l of state.v12TxLines||[])l.shelf_id=state.v13NewTxMovement[(sourceMode?'source':'destination')+'_shelf_id']||'';state.v12TxWarehouseId=state.v13NewTxMovement[(sourceMode?'source':'destination')+'_warehouse_id']||'';}
    txModal();return;
