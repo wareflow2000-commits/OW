@@ -339,7 +339,7 @@ const __v8Handle=handleAction;
 handleAction=function(a){
   if(a==='v8-open-wh'){v8OpenFacility('warehouse');return} if(a==='v8-open-zone'||a==='open-zone'){v8Err(state.lang==='ar'?'المناطق القديمة مخفية؛ استخدم مناطق التخزين.':'Legacy zones are hidden; use storage areas.');return} if(a==='v8-open-area'){v8OpenFacility('storage_area');return} if(a.startsWith('v8-edit-area:')){v8OpenFacility('storage_area',a.split(':')[1]);return} if(a==='v8-open-section'||a==='open-section'){v8OpenFacility('section');return} if(a.startsWith('v8-edit-category:')){v8OpenFacility('section',a.split(':')[1]);return} if(a==='v8-open-shelf'||a==='open-shelf'){v8OpenFacility('shelf');return} if(a.startsWith('v8-edit-shelf:')){v8OpenFacility('shelf',a.split(':')[1]);return}
   if(a.startsWith('v8-select-wh:')){v8SelectWarehouse(a.split(':')[1]);return}
-  if(a==='v8-open-item'){v8ItemModal();return} if(a.startsWith('v8-edit-item:')){v8ItemModal(a.split(':')[1]);return} if(a.startsWith('v8-delete-item:')){v8DeleteItem(a.split(':')[1]);return}
+  if(a==='open-item'||a==='v8-open-item'){v8ItemModal();return} if(a.startsWith('v8-edit-item:')){v8ItemModal(a.split(':')[1]);return} if(a.startsWith('v8-delete-item:')){v8DeleteItem(a.split(':')[1]);return}
   if(a==='v8-save-facility'){try{v8SaveFacility(state.v8FacilityKind)}catch(e){v8Err(e.message||String(e))}return}
   if(a==='v8-save-form'){try{if(state.v8FormId==='item')v8SaveItem();else __v8Handle(a)}catch(e){v8Err(e.message||String(e))}return}
   if(a.startsWith('v8-print-shelf:')){const s=v5Find('shelves',a.split(':')[1]);if(s){const w=v5Find('warehouses',s.warehouse_id);const html=`<html><head><title>QR ${esc(s.code)}</title></head><body style="font-family:Arial;text-align:center;padding:40px;direction:rtl"><h2>${esc(w?.name||'')}</h2><h1>${esc(s.code)}</h1><p>${esc(s.full_path||'')}</p><p>QR: ${esc(s.code)}</p><script>window.print()<\/script></body></html>`;const win=window.open('','_blank');if(win){win.document.write(html);win.document.close()}}return}
@@ -976,7 +976,7 @@ try{render()}catch(e){console.error('V10 final render failed',e)}
   async function saveFacility(kind,id){
     const f=document.getElementById('v12-fac-form');if(!f)return;const o=Object.fromEntries(new FormData(f).entries());
     if(kind==='section'){const z=v5Find('zones',o.zone_id);if(!z||z.warehouse_id!==o.warehouse_id)return say('المنطقة لا تتبع المستودع المحدد','Selected zone does not belong to warehouse','error')}
-    if(kind==='shelf'){const a=v5Find('storage_areas',o.storage_area_id),z=a?.legacy_zone_id?v5Find('zones',a.legacy_zone_id):null;if(!a||a.warehouse_id!==o.warehouse_id||a.is_active===false||!z||z.warehouse_id!==o.warehouse_id)return say('منطقة التخزين لا تتبع المستودع أو لا تملك رابط توافق صالحاً.','Storage area does not belong to the warehouse or lacks a valid compatibility link.','error')}
+    if(kind==='shelf'){const a=v5Find('storage_areas',o.storage_area_id);if(!a||a.warehouse_id!==o.warehouse_id||a.is_active===false||!c10AccessibleWarehouse(o.warehouse_id))return say('منطقة التخزين لا تتبع المستودع أو ليس لديك صلاحية الوصول إليه.','Storage area does not belong to the warehouse or you lack access.','error')}
     if(!String(o.code||'').trim())return say('أدخل الرمز أولاً','Enter a code first','error');
     if(kind!=='shelf'&&!String(o.name||'').trim())return say('أدخل الاسم أولاً','Enter a name first','error');
     if(kind!=='warehouse'&&!String(o.warehouse_id||'').trim())return say('اختر المستودع أولاً','Choose a warehouse first','error');
