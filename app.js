@@ -202,7 +202,13 @@ function v7Reject(id){const tx=v5Find('transactions',id);if(!tx)return;const rea
 function v7Transactions(){const t=T(),rows=v5All('transactions').slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));return pageHead(t.transactions,`${rows.length} ${t.transactions}`,`<button class="btn primary" data-action="v5-new-in">${esc(t.createGRN)}</button><button class="btn ghost" data-action="v5-new-out">${esc(t.createIssue)}</button>`)+card('',table([t.date,t.reference,t.type,t.qty,t.status,t.actions],rows.map(x=>`<tr><td>${new Date(x.created_at).toLocaleString()}</td><td>${esc(x.reference_no)}</td><td>${esc(v13DisplayTransactionRecordType(x))}</td><td>${esc(x.total_qty??v7Lines(x).reduce((n,l)=>n+Number(l.quantity||0),0))}</td><td><span class="badge ${x.status==='APPROVED'?'good':x.status==='REJECTED'?'bad':'warn'}">${esc(v13DisplayStatus(x.status))}</span></td><td>${x.status==='PENDING_APPROVAL'?`<button class="btn small good" data-action="v7-approve:${x.id}">${esc(t.approve)}</button><button class="btn small danger" data-action="v7-reject:${x.id}">${esc(t.reject)}</button>`:''}</td></tr>`))) }
 transactions=v7Transactions;
 const __v7Handle=handleAction;
-handleAction=function(a){if(a.startsWith('v7-approve:')){v7Approve(a.split(':')[1]);return}if(a.startsWith('v7-reject:')){v7Reject(a.split(':')[1]);return}if(a==='v5-save-modal'){try{const m=state.v5Modal;if(m && (m.kind==='IN'||m.kind==='OUT')){const form=document.getElementById('v5-tx-form');v7CreateTx(form,m.kind==='OUT'?'ISSUE':'GRN');closeModal();toast(T().create+' ✓');render();return}}catch(e){toast(e.message||String(e),'error');return}}__v7Handle(a)};
+handleAction=function(a){
+  if(a.startsWith('v7-approve:')||a.startsWith('v7-reject:')||a.startsWith('v5-approve:')||a.startsWith('v5-reject:')||a==='v5-new-in'||a==='v5-new-out'||a==='v5-save-modal'){
+    toast(state.lang==='ar'?'مسار المعاملات المحلي القديم متوقف. استخدم «طلب جديد» والاعتماد من قاعدة البيانات.':'Legacy local transaction actions are retired. Use New Request and database-backed approval.','error');
+    return;
+  }
+  __v7Handle(a);
+};
 
 
 /* ===== V8 feature-parity implementation: Facilities + Inventory ===== */
@@ -464,15 +470,11 @@ function v9Transactions(){
 }
 const __v9PrevHandle=handleAction;
 handleAction=function(a){
-  if(a==='v9-open:GRN'){v9TxOpen('GRN');return} if(a==='v9-open:ISSUE'){v9TxOpen('ISSUE');return}
-  if(a.startsWith('v9-tx-type:')){v9TxReadDraft();state.v9TxDraft.type=a.split(':')[1];state.modal=v9TxModal();render();return}
-  if(a==='v9-tx-add'){v9TxReadDraft();state.v9TxDraft.lines.push({itemId:'',quantity:'1',unit:'',shelfId:'',batchNo:'',expiryDate:''});state.modal=v9TxModal();render();return}
-  if(a.startsWith('v9-tx-del:')){v9TxReadDraft();const i=Number(a.split(':')[1]);if(state.v9TxDraft.lines.length>1)state.v9TxDraft.lines.splice(i,1);state.modal=v9TxModal();render();return}
-  if(a==='v9-tx-save'){v9TxSave();return}
-  if(a.startsWith('v9-filter:')){state.v9TxFilter=a.split(':')[1];render();return}
-  if(a.startsWith('v9-detail:')){const x=v5Find('transactions',a.split(':')[1]);if(x){state.modal=v9TxDetail(x);render()}return}
-  if(a.startsWith('v9-approve:')){if(confirm(T().approve+'?'))v9TxApprove(a.split(':')[1]);return}
-  if(a.startsWith('v9-reject:')){const x=v5Find('transactions',a.split(':')[1]);if(!x)return;const reason=prompt(state.lang==='ar'?'سبب الرفض:':'Rejection reason:','');if(reason===null||!reason.trim())return;x.status='REJECTED';x.rejection_reason=reason.trim();x.rejected_at=v9TxNow();v7Audit('REJECT','transactions',x.id,{reason:x.rejection_reason});v7Queue('transactions','UPDATE',x);v5Save();closeModal();toast(T().reject+' ✓');render();return}
+  if(a==='v9-open:GRN'||a==='v9-open:ISSUE'){v9TxOpen(a.endsWith('GRN')?'GRN':'ISSUE');return}
+  if(a.startsWith('v9-tx-')||a.startsWith('v9-approve:')||a.startsWith('v9-reject:')||a.startsWith('v9-filter:')||a.startsWith('v9-detail:')){
+    toast(state.lang==='ar'?'مسار المعاملات القديم متوقف. استخدم نموذج «طلب جديد».':'Legacy transaction actions are retired. Use New Request.','error');
+    return;
+  }
   __v9PrevHandle(a);
 };
 transactions=v9Transactions;
