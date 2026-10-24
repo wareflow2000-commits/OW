@@ -1,7 +1,15 @@
 /* ORSHAP WMS service worker: app-shell caching only. Remote business data is never cached here. */
 'use strict';
-const CACHE_NAME = 'orshap-wms-shell-v13-9-58';
-const APP_SHELL = ['./index.html', './qr-reader.js?v=13.9.58', './app.css?v=13.9.58', './app.js?v=13.9.58', './SQLite-db.js?v=13.9.58', './supabase-client.js?v=13.9.58', './manifest.webmanifest'];
+const CACHE_NAME = 'orshap-wms-shell-v13-9-58-r2';
+const APP_SHELL = [
+  './index.html',
+  './qr-reader.js?v=13.9.58',
+  './app.css?v=13.9.62-topbar-content-distribution',
+  './app.js?v=13.9.58-layout3',
+  './SQLite-db.js?v=13.9.58',
+  './supabase-client.js?v=13.9.58',
+  './manifest.webmanifest'
+];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
 });
@@ -20,7 +28,7 @@ self.addEventListener('fetch', event => {
     }).catch(() => caches.match('./index.html')));
     return;
   }
-  const isAppAsset = /\.(?:js|css)$/.test(url.pathname);
+  const isAppAsset = /\\.(?:js|css)$/.test(url.pathname);
   if (isAppAsset) {
     event.respondWith(fetch(request).then(response => {
       if (response.ok && response.type === 'basic') caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone()));
