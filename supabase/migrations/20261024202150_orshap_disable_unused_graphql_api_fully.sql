@@ -1,0 +1,7 @@
+-- ORSHAP WMS v13.9.58
+-- Follow-up audit note: pg_graphql functions and schemas are owned by the
+-- managed supabase_admin role. REVOKE did not alter the extension ACL in the
+-- current project and SET ROLE supabase_admin is denied. This migration is
+-- intentionally a no-op so migration history remains represented in Git.
+-- GraphQL exposure is NOT fixed; complete it through supported project-level
+-- configuration or a Supabase administrator-owned change, then verify access.
