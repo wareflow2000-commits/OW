@@ -28,7 +28,7 @@ self.addEventListener('fetch', event => {
     }).catch(() => caches.match('./index.html')));
     return;
   }
-  const isAppAsset = /\\.(?:js|css)$/.test(url.pathname);
+  const isAppAsset = /\.(?:js|css)$/.test(url.pathname);
   if (isAppAsset) {
     event.respondWith(fetch(request).then(response => {
       if (response.ok && response.type === 'basic') caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone()));
