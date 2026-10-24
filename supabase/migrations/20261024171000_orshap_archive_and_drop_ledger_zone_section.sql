@@ -34,8 +34,7 @@ BEGIN
       $re$v_line\.warehouse_id[[:space:]]*,[[:space:]]*v_line\.zone_id[[:space:]]*,[[:space:]]*v_line\.section_id[[:space:]]*,[[:space:]]*v_line\.shelf_id$re$,
       'v_line.warehouse_id,v_line.shelf_id','gi');
     IF v_new = v_def OR
-       (v_new ILIKE '%INSERT INTO public.inventory_ledger%' AND
-        v_new ILIKE '%warehouse_id%zone_id%section_id%shelf_id%') THEN
+       split_part(substring(v_new from position('INSERT INTO public.inventory_ledger' in v_new)), ') VALUES', 1) ILIKE '%zone_id%' THEN
       RAISE EXCEPTION 'Could not safely remove legacy inventory-ledger columns from %',r.signature;
     END IF;
     EXECUTE v_new;
@@ -59,8 +58,7 @@ BEGIN
       $re$p_warehouse_id[[:space:]]*,[[:space:]]*p_zone_id[[:space:]]*,[[:space:]]*p_section_id[[:space:]]*,[[:space:]]*p_shelf_id$re$,
       'p_warehouse_id,p_shelf_id','gi');
     IF v_new = v_def OR
-       (v_new ILIKE '%INSERT INTO transaction_ledger%' AND
-        v_new ILIKE '%zone_id%section_id%shelf_id%') THEN
+       split_part(substring(v_new from position('INSERT INTO transaction_ledger' in v_new)), ') VALUES', 1) ILIKE '%zone_id%' THEN
       RAISE EXCEPTION 'Could not safely remove legacy transaction-ledger columns from %',r.signature;
     END IF;
     EXECUTE v_new;
@@ -72,10 +70,10 @@ BEGIN
      WHERE n.nspname='public' AND p.prokind='f'
        AND (
          (pg_get_functiondef(p.oid) ILIKE '%INSERT INTO public.inventory_ledger%'
-          AND pg_get_functiondef(p.oid) ILIKE '%warehouse_id%zone_id%section_id%shelf_id%')
+          AND split_part(substring(pg_get_functiondef(p.oid) from position('INSERT INTO public.inventory_ledger' in pg_get_functiondef(p.oid))), ') VALUES', 1) ILIKE '%zone_id%')
          OR
          (pg_get_functiondef(p.oid) ILIKE '%INSERT INTO transaction_ledger%'
-          AND pg_get_functiondef(p.oid) ILIKE '%warehouse_id%zone_id%section_id%shelf_id%')
+          AND split_part(substring(pg_get_functiondef(p.oid) from position('INSERT INTO transaction_ledger' in pg_get_functiondef(p.oid))), ') VALUES', 1) ILIKE '%zone_id%')
        )
   ) THEN
     RAISE EXCEPTION 'Legacy ledger INSERT dependencies remain; ledger columns were not dropped';
