@@ -404,8 +404,30 @@ AS $function$
 DECLARE
  v_owner uuid;
  v_owner_count integer := 0;
+ v_user uuid := auth.uid();
+ v_profile public.profiles%ROWTYPE;
+ v_shelf public.shelves%ROWTYPE;
 BEGIN
+ IF v_user IS NULL OR NOT public.current_user_is_active() THEN
+   RAISE EXCEPTION 'An active authenticated user is required';
+ END IF;
+ IF NOT public.current_user_has_permission(
+   CASE WHEN upper(COALESCE(p_return_type,'')) = 'RETURN_TO_SUPPLIER'
+        THEN 'action:transaction:issue:create'
+        ELSE 'action:transaction:grn:create' END
+ ) THEN
+   RAISE EXCEPTION 'Permission denied for return type %', p_return_type;
+ END IF;
+
  IF upper(COALESCE(p_return_type,'')) = 'RETURN_TO_SUPPLIER' THEN
+   SELECT * INTO v_shelf FROM public.shelves WHERE id = p_shelf_id;
+   IF NOT FOUND THEN RAISE EXCEPTION 'Return shelf not found'; END IF;
+   SELECT * INTO v_profile FROM public.profiles WHERE id = v_user AND status = 'ACTIVE';
+   IF v_profile.role NOT IN ('SUPER_ADMIN','ADMIN','MANAGER')
+      AND (cardinality(COALESCE(v_profile.assigned_warehouse_ids, ARRAY[]::uuid[])) = 0
+           OR NOT (v_shelf.warehouse_id = ANY(v_profile.assigned_warehouse_ids))) THEN
+     RAISE EXCEPTION 'User is not assigned to the return warehouse';
+   END IF;
    -- Idempotent retries use the owner recorded on the original request.
    SELECT tl.administrative_department_id
      INTO v_owner
