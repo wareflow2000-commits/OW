@@ -25,16 +25,16 @@ BEGIN
       $re$warehouse_id[[:space:]]*,[[:space:]]*zone_id[[:space:]]*,[[:space:]]*shelf_id$re$,
       'warehouse_id,shelf_id','gi');
     v_new := regexp_replace(v_new,
-      $re$p_warehouse_id[[:space:]]*,[[:space:]]*p_zone_id[[:space:]]*,[[:space:]]*p_section_id[[:space:]]*,[[:space:]]*p_shelf_id$re$,
-      'p_warehouse_id,p_shelf_id','gi');
+      $re$(VALUES[[:space:]]*\\(.*p_warehouse_id)[[:space:]]*,[[:space:]]*p_zone_id[[:space:]]*,[[:space:]]*p_section_id[[:space:]]*,[[:space:]]*p_shelf_id$re$,
+      $rep$\\1,p_shelf_id$rep$,'gis');
     v_new := regexp_replace(v_new,
-      $re$p_warehouse_id[[:space:]]*,[[:space:]]*p_zone_id[[:space:]]*,[[:space:]]*p_shelf_id$re$,
-      'p_warehouse_id,p_shelf_id','gi');
+      $re$(VALUES[[:space:]]*\\(.*p_warehouse_id)[[:space:]]*,[[:space:]]*p_zone_id[[:space:]]*,[[:space:]]*p_shelf_id$re$,
+      $rep$\\1,p_shelf_id$rep$,'gis');
     v_new := regexp_replace(v_new,
       $re$v_line\.warehouse_id[[:space:]]*,[[:space:]]*v_line\.zone_id[[:space:]]*,[[:space:]]*v_line\.section_id[[:space:]]*,[[:space:]]*v_line\.shelf_id$re$,
       'v_line.warehouse_id,v_line.shelf_id','gi');
     IF v_new = v_def OR
-       split_part(substring(v_new from position('INSERT INTO public.inventory_ledger' in v_new)), ') VALUES', 1) ILIKE '%zone_id%' THEN
+       left(substring(v_new from position('INSERT INTO public.inventory_ledger' in v_new)), position('VALUES' in substring(v_new from position('INSERT INTO public.inventory_ledger' in v_new)))) ILIKE '%zone_id%' THEN
       RAISE EXCEPTION 'Could not safely remove legacy inventory-ledger columns from %',r.signature;
     END IF;
     EXECUTE v_new;
@@ -58,7 +58,7 @@ BEGIN
       $re$p_warehouse_id[[:space:]]*,[[:space:]]*p_zone_id[[:space:]]*,[[:space:]]*p_section_id[[:space:]]*,[[:space:]]*p_shelf_id$re$,
       'p_warehouse_id,p_shelf_id','gi');
     IF v_new = v_def OR
-       split_part(substring(v_new from position('INSERT INTO transaction_ledger' in v_new)), ') VALUES', 1) ILIKE '%zone_id%' THEN
+       left(substring(v_new from position('INSERT INTO transaction_ledger' in v_new)), position('VALUES' in substring(v_new from position('INSERT INTO transaction_ledger' in v_new)))) ILIKE '%zone_id%' THEN
       RAISE EXCEPTION 'Could not safely remove legacy transaction-ledger columns from %',r.signature;
     END IF;
     EXECUTE v_new;
@@ -70,10 +70,10 @@ BEGIN
      WHERE n.nspname='public' AND p.prokind='f'
        AND (
          (pg_get_functiondef(p.oid) ILIKE '%INSERT INTO public.inventory_ledger%'
-          AND split_part(substring(pg_get_functiondef(p.oid) from position('INSERT INTO public.inventory_ledger' in pg_get_functiondef(p.oid))), ') VALUES', 1) ILIKE '%zone_id%')
+          AND left(substring(pg_get_functiondef(p.oid) from position('INSERT INTO public.inventory_ledger' in pg_get_functiondef(p.oid))), position('VALUES' in substring(pg_get_functiondef(p.oid) from position('INSERT INTO public.inventory_ledger' in pg_get_functiondef(p.oid))))) ILIKE '%zone_id%')
          OR
          (pg_get_functiondef(p.oid) ILIKE '%INSERT INTO transaction_ledger%'
-          AND split_part(substring(pg_get_functiondef(p.oid) from position('INSERT INTO transaction_ledger' in pg_get_functiondef(p.oid))), ') VALUES', 1) ILIKE '%zone_id%')
+          AND left(substring(pg_get_functiondef(p.oid) from position('INSERT INTO transaction_ledger' in pg_get_functiondef(p.oid))), position('VALUES' in substring(pg_get_functiondef(p.oid) from position('INSERT INTO transaction_ledger' in pg_get_functiondef(p.oid))))) ILIKE '%zone_id%')
        )
   ) THEN
     RAISE EXCEPTION 'Legacy ledger INSERT dependencies remain; ledger columns were not dropped';
