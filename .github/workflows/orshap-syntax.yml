@@ -1,0 +1,22 @@
+name: ORSHAP WMS syntax validation
+
+on:
+  push:
+    branches:
+      - audit/v13.9.58-dropdown-unification
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  javascript-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate app.js syntax
+        run: node --check app.js
