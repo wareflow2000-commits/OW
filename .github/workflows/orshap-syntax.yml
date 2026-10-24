@@ -34,3 +34,5 @@ jobs:
         run: node scripts/check-app-shell.cjs
       - name: Validate critical RPC idempotency contracts
         run: node scripts/check-critical-rpc-contracts.cjs
+      - name: Validate CSS structure
+        run: node scripts/check-css-structure.cjs
