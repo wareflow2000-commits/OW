@@ -33,6 +33,8 @@ const { chromium } = require('playwright');
       render();
     });
     await page.locator('.app-shell').waitFor({ state: 'visible' });
+    const desktopNavDisplay = await page.locator('.v13-bottom-nav').evaluate(el => getComputedStyle(el).display);
+    assert.equal(desktopNavDisplay, 'none', 'Mobile bottom navigation must be hidden on desktop.');
     await page.screenshot({ path: path.join(outDir, 'desktop-shell-rtl.png'), fullPage: true });
     const rtlDesktop = await page.evaluate(() => {
       const sidebar = document.querySelector('.v13-sidebar, .sidebar').getBoundingClientRect();
