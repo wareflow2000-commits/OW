@@ -157,15 +157,6 @@ function v7Queue(table,operation,payload,baseVersion=0){
   V5_DB.sync_queue.push({id:uid(),operation_id:uid(),table,operation,payload,base_version:baseVersion,device_id:localStorage.getItem('orshap_device_id')||'browser',timestamp:Date.now(),synced:0,retry_count:0,error_details:null});
 }
 function v7Audit(action,entity,id,details={}){v7Ensure();V5_DB.audit_logs.push({id:uid(),action,entity,entity_id:id,details,created_at:v7Now()});}
-function v7Lines(tx){return v7All('transaction_lines').filter(x=>x.transaction_id===tx.id)}
-function v7Stock(itemId,shelfId){return v7All('stock').find(x=>x.item_id===itemId && x.shelf_id===shelfId)}
-function v7Ledger(tx,line,delta,before,after){
-  const item=v5Find('items',line.item_id)||{};
-  const row={id:uid(),occurred_at:v7Now(),item_id:line.item_id,item_code:item.code||'',item_name:item.name_en||item.name_ar||'',warehouse_id:tx.warehouse_id||null,zone_id:tx.zone_id||null,section_id:tx.section_id||null,shelf_id:line.shelf_id||null,delta,unit:item.base_unit||'PCS',source_type:tx.transaction_type,source_id:tx.id,source_ref:tx.reference_no,running_balance:after,created_at:v7Now(),metadata:{transaction_line_id:line.id}};
-  V5_DB.inventory_ledger.push(row);
-  V5_DB.transaction_ledger.push({id:uid(),transaction_id:tx.id,ledger_type:'TRANSACTION',user_id:tx.created_by||null,warehouse_id:tx.warehouse_id||null,zone_id:tx.zone_id||null,section_id:tx.section_id||null,shelf_id:line.shelf_id||null,item_id:line.item_id,quantity:delta,balance_before:before,balance_after:after,transaction_type:tx.transaction_type,details:{tx_line_id:line.id},reference:tx.reference_no,approved:true,approved_at:v7Now()});
-}
-
 const __v7Handle=handleAction;
 handleAction=function(a){
   if(a.startsWith('v7-approve:')||a.startsWith('v7-reject:')||a.startsWith('v5-approve:')||a.startsWith('v5-reject:')||a==='v5-new-in'||a==='v5-new-out'||a==='v5-save-modal'){
@@ -628,15 +619,6 @@ try{render()}catch(e){console.error('V10 final render failed',e)}
     V5_DB.warehouses=out.warehouses;V5_DB.shelves=out.shelves;V5_DB.items=out.items;V5_DB.units=out.units;V5_DB.item_unit_conversions=out.item_unit_conversions;V5_DB.stock=mapStock(out.stock);V5_DB.transactions=mapTransactions(out.transactions,out.transaction_lines);V5_DB.transaction_lines=out.transaction_lines;V5_DB.stocktake_sessions=out.stocktake_sessions;V5_DB.stocktake_lines=out.stocktake_lines;V5_DB.stocktake_logs=out.stocktake_logs;V5_DB.audit_logs=out.audit_logs;V5_DB.system_settings=out.system_settings;
     localStorage.setItem(V5_KEY,JSON.stringify(V5_DB));
     return true;
-  }
-  function rowsFor(table){
-    const a=v5All(table);
-    if(table==='stock')return a.map(x=>({id:x.id,item_id:x.item_id,shelf_id:x.shelf_id,quantity:Number(x.quantity||0),updated_at:x.updated_at||new Date().toISOString(),created_at:x.created_at||new Date().toISOString()}));
-    if(table==='items')return a.map(x=>({id:x.id,code:x.code,item_number:x.item_number||null,name_ar:x.name_ar||null,name_en:x.name_en||'',base_unit:x.base_unit||'PCS',purchase_unit:x.purchase_unit||null,conversion_factor:Number(x.conversion_factor||1),weight:Number(x.weight||0),hazardous:!!x.hazardous,safety_stock:Number(x.safety_stock||0),status:x.status||'ACTIVE',cost:x.cost===''?null:Number(x.cost||0),supplier:x.supplier||null,created_at:x.created_at||new Date().toISOString()}));
-    if(table==='transactions')return a.map(x=>({id:x.id,reference_no:x.reference_no||('REF-'+x.id),transaction_type:['GRN_IN','GRN'].includes(x.transaction_type)?'GRN':x.transaction_type==='ISSUE_OUT'?'ISSUE':x.transaction_type,status:x.status||'PENDING_APPROVAL',warehouse_id:x.warehouse_id||null,zone_id:x.zone_id||null,section_id:x.section_id||null,external_reference:x.external_reference||null,supplier:x.supplier||null,receiver_name:x.receiver_name||null,notes:x.notes||x.note||null,rejection_reason:x.rejection_reason||null,created_by:x.created_by||null,created_at:x.created_at||new Date().toISOString()}));
-    if(table==='transaction_lines')return a.map(x=>({id:x.id,transaction_id:x.transaction_id,item_id:x.item_id,shelf_id:x.shelf_id,quantity:Number(x.quantity||0),balance_before:Number(x.balance_before||0),balance_after:Number(x.balance_after||0),notes:x.notes||null,created_at:x.created_at||new Date().toISOString()}));
-    if(table==='audit_logs')return a.map(x=>({id:x.id,user_id:x.user_id||state.session?.id||null,action:x.action||'UPDATE',entity:x.entity||null,entity_id:x.entity_id||null,details:x.details||{},item_id:x.item_id||null,item_code:x.item_code||null,item_name:x.item_name||null,warehouse_id:x.warehouse_id||null,zone_id:x.zone_id||null,section_id:x.section_id||null,quantity_before:x.quantity_before??null,quantity_after:x.quantity_after??null,reference:x.reference||null,created_at:x.created_at||new Date().toISOString()}));
-    return a;
   }
   async function pushRemote(){ return false; }
   function prepareUserCache(userId){const prior=V5_DB.__cached_user_id;const tables=['warehouses','storage_areas','administrative_departments','item_categories','shelves','items','units','item_unit_conversions','stock','transactions','transaction_lines','stocktake_sessions','stocktake_lines','stocktake_logs','audit_logs','inventory_ledger','transaction_ledger','transaction_audit','archive_movements','archive_balances','system_settings','profiles','permissions','role_permissions','sync_log'];if(prior!==userId){for(const k of tables)V5_DB[k]=[];V5_DB.__cached_user_id=userId;delete V5_DB.__seeded_demo;localStorage.setItem(V5_KEY,JSON.stringify(V5_DB));try{window.orshapSQLite?.saveState?.(V5_DB).catch(()=>{})}catch(e){}}}
