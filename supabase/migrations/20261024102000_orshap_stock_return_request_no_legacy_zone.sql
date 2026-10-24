@@ -1,5 +1,3 @@
--- Return-request creation uses storage_area_id directly and leaves legacy transaction snapshot IDs NULL.
--- Stock and ledger rows are not changed by this function definition migration.
 CREATE OR REPLACE FUNCTION public.create_stock_return_request(
  p_return_id uuid, p_return_type text, p_reference_no text, p_item_id uuid, p_quantity numeric,
  p_batch_no text DEFAULT ''::text, p_expiry_date date DEFAULT NULL::date, p_shelf_id uuid DEFAULT NULL::uuid,
