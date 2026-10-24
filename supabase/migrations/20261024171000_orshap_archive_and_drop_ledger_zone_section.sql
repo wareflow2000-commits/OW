@@ -25,11 +25,11 @@ BEGIN
       $re$warehouse_id[[:space:]]*,[[:space:]]*zone_id[[:space:]]*,[[:space:]]*shelf_id$re$,
       'warehouse_id,shelf_id','gi');
     v_new := regexp_replace(v_new,
-      $re$(VALUES[[:space:]]*\\(.*p_warehouse_id)[[:space:]]*,[[:space:]]*p_zone_id[[:space:]]*,[[:space:]]*p_section_id[[:space:]]*,[[:space:]]*p_shelf_id$re$,
-      $rep$\\1,p_shelf_id$rep$,'gis');
+      $re$(VALUES[[:space:]]*[(].*p_warehouse_id)[[:space:]]*,[[:space:]]*p_zone_id[[:space:]]*,[[:space:]]*p_section_id[[:space:]]*,[[:space:]]*p_shelf_id$re$,
+      $rep$\1,p_shelf_id$rep$,'gis');
     v_new := regexp_replace(v_new,
-      $re$(VALUES[[:space:]]*\\(.*p_warehouse_id)[[:space:]]*,[[:space:]]*p_zone_id[[:space:]]*,[[:space:]]*p_shelf_id$re$,
-      $rep$\\1,p_shelf_id$rep$,'gis');
+      $re$(VALUES[[:space:]]*[(].*p_warehouse_id)[[:space:]]*,[[:space:]]*p_zone_id[[:space:]]*,[[:space:]]*p_shelf_id$re$,
+      $rep$\1,p_shelf_id$rep$,'gis');
     v_new := regexp_replace(v_new,
       $re$v_line\.warehouse_id[[:space:]]*,[[:space:]]*v_line\.zone_id[[:space:]]*,[[:space:]]*v_line\.section_id[[:space:]]*,[[:space:]]*v_line\.shelf_id$re$,
       'v_line.warehouse_id,v_line.shelf_id','gi');
