@@ -1850,3 +1850,141 @@ render();
     openReview();
   },true);
 })();
+
+/* v13.9.58 — opening-balance voucher workspace (manual + CSV; never writes stock directly). */
+(function installOpeningBalanceWorkspace(){
+  const txText=(ar,en)=>state.lang==='ar'?ar:en;
+  const activeRows=(table)=>v5All(table).filter(x=>x.is_active!==false && String(x.status||'ACTIVE').toUpperCase()!=='INACTIVE');
+  const byId=(table,id)=>v5Find(table,id);
+  const codeOf=(x)=>String(x?.code||x?.department_code||x?.item_code||'');
+  const nameOf=(x)=>String(state.lang==='ar'?(x?.name_ar||x?.name):(x?.name_en||x?.name)||codeOf(x));
+  const opts=(rows,selected,label,placeholder)=>'<option value="">— '+esc(placeholder)+' —</option>'+rows.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===selected?'selected':'')+'>'+esc(label(x))+'</option>').join('');
+  function ownerAllowed(){const role=String(state.session?.role||state.session?.profile?.role||'').toUpperCase();return ['SUPER_ADMIN','MANAGER'].includes(role)}
+  function openingButton(){return '<button class="btn secondary" data-action="ob-open">＋ '+esc(txText('إدارة الأرصدة الافتتاحية','Opening balances'))+'</button>'}
+  const oldTransactionsPage=transactions;
+  transactions=function(){
+    const html=oldTransactionsPage();
+    if(!ownerAllowed())return html;
+    return html.replace(/(<div class="actions">)([\s\S]*?)(<\/div><\/div>)/,(m,a,b,c)=>a+b+openingButton()+c);
+  };
+  function buildModal(){
+    const warehouses=activeRows('warehouses'),items=activeRows('items'),areas=activeRows('storage_areas'),shelves=activeRows('shelves'),owners=activeRows('administrative_departments');
+    const wh=warehouses[0]?.id||'',areaRows=areas.filter(x=>x.warehouse_id===wh),area=areaRows[0]?.id||'';
+    const shelfRows=shelves.filter(x=>x.warehouse_id===wh&&(!area||x.storage_area_id===area));
+    const body='<div class="callout warning">'+esc(txText('هذا النموذج ينشئ سند رصيد افتتاحي بحالة «بانتظار الاعتماد». لا يكتب الأرصدة مباشرة؛ تُحدّث الكميات ودفاتر الحركة عند الاعتماد فقط.','This creates an opening-balance voucher in Pending Approval. It never writes stock directly; stock and ledgers change only when approved.'))+'</div>'+
+      '<section class="card" style="margin:12px 0"><div class="card-head"><b>'+esc(txText('إدخال يدوي','Manual entry'))+'</b></div><div class="card-body"><form id="ob-manual-form" class="form-grid">'+
+      '<label class="field"><span>'+esc(txText('الصنف','Item'))+'</span><select name="item_id" required>'+opts(items,'',x=>(codeOf(x)+' · '+nameOf(x)),txText('اختر الصنف','Select item'))+'</select></label>'+
+      '<label class="field"><span>'+esc(txText('المستودع','Warehouse'))+'</span><select name="warehouse_id" id="ob-warehouse" required>'+opts(warehouses,wh,x=>(codeOf(x)+' · '+nameOf(x)),txText('اختر المستودع','Select warehouse'))+'</select></label>'+
+      '<label class="field"><span>'+esc(txText('منطقة التخزين','Storage area'))+'</span><select name="storage_area_id" id="ob-area" required>'+opts(areaRows,area,x=>(codeOf(x)+' · '+nameOf(x)),txText('اختر المنطقة','Select storage area'))+'</select></label>'+
+      '<label class="field"><span>'+esc(txText('الرف','Shelf'))+'</span><select name="shelf_id" id="ob-shelf" required>'+opts(shelfRows,'',x=>(codeOf(x)+' · '+(x.full_path||nameOf(x))),txText('اختر الرف','Select shelf'))+'</select></label>'+
+      '<label class="field"><span>'+esc(txText('الإدارة المالكة للرصيد','Owning department'))+'</span><select name="administrative_department_id" required>'+opts(owners,'',x=>(codeOf(x)+' · '+nameOf(x)),txText('اختر الإدارة المالكة','Select owning department'))+'</select></label>'+
+      '<label class="field"><span>'+esc(txText('الكمية الافتتاحية','Opening quantity'))+'</span><input name="quantity" type="number" min="0.001" step="any" required></label>'+
+      '<label class="field"><span>'+esc(txText('رقم التشغيلة','Batch number'))+'</span><input name="batch_no" placeholder="OPENING"></label>'+
+      '<label class="field"><span>'+esc(txText('تاريخ الصلاحية','Expiry date'))+'</span><input name="expiry_date" type="date"></label>'+
+      '<label class="field full"><span>'+esc(txText('ملاحظات ومصدر الرصيد','Notes / balance source'))+'</span><textarea name="notes" rows="2" placeholder="'+esc(txText('محضر الجرد أو مرجع الرصيد الافتتاحي','Opening inventory sheet or source reference'))+'"></textarea></label></form>'+
+      '<div class="form-actions"><button class="btn primary" data-action="ob-save-manual">'+esc(txText('إنشاء سند الرصيد','Create opening voucher'))+'</button></div></div></section>'+
+      '<section class="card"><div class="card-head"><b>'+esc(txText('رفع الأرصدة من CSV','Import balances from CSV'))+'</b><button class="btn sm ghost" data-action="ob-template">↓ '+esc(txText('تنزيل القالب','Download template'))+'</button></div><div class="card-body">'+
+      '<p class="muted">'+esc(txText('اربط كل صف بصنف ومستودع ومنطقة ورف وإدارة مالكة. يمكن للملف أن يحتوي عدة مستودعات؛ ينشئ النظام سنداً مستقلاً لكل مستودع، وتُنشأ جميع السندات أو لا يُنشأ أي منها.','Map every row to an item, warehouse, storage area, shelf and owning department. A file may contain multiple warehouses; one voucher is created per warehouse, atomically for the whole batch.'))+'</p>'+
+      '<label class="field"><span>CSV</span><input type="file" id="ob-csv-file" accept=".csv,text/csv"></label><div id="ob-csv-status" class="muted"></div>'+
+      '<div class="form-actions"><button class="btn secondary" data-action="ob-import-csv">'+esc(txText('التحقق وإنشاء السندات','Validate & create vouchers'))+'</button></div></div></section>';
+    state.modal=modal(txText('إدارة الأرصدة الافتتاحية','Opening balance management'),body,'<button class="btn ghost" data-action="close-modal">'+esc(T().cancel)+'</button>');
+    render();
+  }
+  function parseCsv(text){
+    const rows=[];let row=[],cell='',quoted=false;
+    for(let i=0;i<text.length;i++){const c=text[i];if(quoted){if(c==='"'&&text[i+1]==='"'){cell+='"';i++}else if(c==='"')quoted=false;else cell+=c}else if(c==='"')quoted=true;else if(c===','){row.push(cell.trim());cell=''}else if(c==='\n'){row.push(cell.trim());if(row.some(v=>v!==''))rows.push(row);row=[];cell=''}else if(c!=='\r')cell+=c}
+    if(quoted)throw new Error(txText('ملف CSV يحتوي على علامة اقتباس غير مغلقة','CSV contains an unclosed quote'));
+    if(cell!==''||row.length){row.push(cell.trim());if(row.some(v=>v!==''))rows.push(row)}
+    if(rows.length<2)throw new Error(txText('يجب أن يحتوي الملف على صف عناوين وصف بيانات واحد على الأقل','CSV needs a header and at least one data row'));
+    const norm=v=>String(v||'').toLowerCase().replace(/[\s_\-./()]+/g,'');
+    const aliases={
+      item_code:['itemcode','sku','code','رمزالصنف','كودالصنف','الصنف'],
+      warehouse_code:['warehousecode','warehouseid','رمزالمستودع','كودالمستودع'],
+      storage_area_code:['storageareacode','storageareaid','zonecode','رمزمنطقةالتخزين','رمزالمنطقة'],
+      shelf_code:['shelfcode','shelfid','رمزالرف','كودالرف'],
+      administrative_department_code:['administrativedepartmentcode','administrativedepartmentid','ownerdepartmentcode','departmentcode','رمزالإدارةالمالكة','رمزالإدارة','كودالإدارة'],
+      quantity:['quantity','qty','openingquantity','openingbalance','الكمية','الرصيدالافتتاحي'],
+      batch_no:['batchno','batch','رقمالتشغيلة','التشغيلة'],
+      expiry_date:['expirydate','expirationdate','تاريخالصلاحية'],
+      notes:['notes','ملاحظات','البيان']
+    };
+    const headers=rows[0].map(h=>String(h||'').replace(/^\uFEFF/,'').trim());
+    const index={};for(const field of Object.keys(aliases)){index[field]=headers.findIndex(h=>aliases[field].includes(norm(h)))}
+    const required=['item_code','warehouse_code','shelf_code','quantity'];
+    const missing=required.filter(k=>index[k]<0);
+    if(missing.length)throw new Error(txText('أعمدة مطلوبة مفقودة: ','Missing required CSV columns: ')+missing.join(', '));
+    return rows.slice(1).map((r,i)=>{const o={_row:i+2};for(const k of Object.keys(index))if(index[k]>=0)o[k]=String(r[index[k]]??'').trim();return o}).filter(r=>Object.values(r).some(v=>String(v||'').trim()!==''));
+  }
+  function resolve(table,value,warehouseId){
+    const v=String(value||'').trim();if(!v)return null;
+    return v5All(table).find(x=>x.id===v)||
+      v5All(table).find(x=>String(x.code||x.department_code||'').toLowerCase()===v.toLowerCase()&&(!warehouseId||x.warehouse_id===warehouseId))||null;
+  }
+  function makeLine(raw,manual=false){
+    const item=manual?byId('items',raw.item_id):resolve('items',raw.item_code);
+    const warehouse=manual?byId('warehouses',raw.warehouse_id):resolve('warehouses',raw.warehouse_code);
+    const shelf=manual?byId('shelves',raw.shelf_id):resolve('shelves',raw.shelf_code,warehouse?.id);
+    const area=manual?byId('storage_areas',raw.storage_area_id):(raw.storage_area_code?resolve('storage_areas',raw.storage_area_code,warehouse?.id):byId('storage_areas',shelf?.storage_area_id));
+    const owner=manual?byId('administrative_departments',raw.administrative_department_id):(raw.administrative_department_code?resolve('administrative_departments',raw.administrative_department_code):byId('administrative_departments',shelf?.default_administrative_department_id));
+    const quantity=Number(raw.quantity);
+    if(!item)throw new Error(txText('الصنف غير معروف','Unknown item')+(raw._row?' · row '+raw._row:''));
+    if(!warehouse)throw new Error(txText('المستودع غير معروف','Unknown warehouse')+(raw._row?' · row '+raw._row:''));
+    if(!shelf||shelf.warehouse_id!==warehouse.id)throw new Error(txText('الرف غير معروف أو لا يتبع المستودع المحدد','Shelf is unknown or belongs to a different warehouse')+(raw._row?' · row '+raw._row:''));
+    if(!area||area.warehouse_id!==warehouse.id||(shelf.storage_area_id&&shelf.storage_area_id!==area.id))throw new Error(txText('منطقة التخزين لا تطابق الرف والمستودع','Storage area does not match the shelf and warehouse')+(raw._row?' · row '+raw._row:''));
+    if(!owner||owner.is_active===false)throw new Error(txText('الإدارة المالكة غير محددة أو غير نشطة','Owning department is missing or inactive')+(raw._row?' · row '+raw._row:''));
+    if(!Number.isFinite(quantity)||quantity<=0)throw new Error(txText('الكمية يجب أن تكون رقماً موجباً','Quantity must be a positive finite number')+(raw._row?' · row '+raw._row:''));
+    const expiry=String(raw.expiry_date||'').trim();
+    if(expiry&&!/^\d{4}-\d{2}-\d{2}$/.test(expiry))throw new Error(txText('تاريخ الصلاحية يجب أن يكون بصيغة YYYY-MM-DD','Expiry date must use YYYY-MM-DD')+(raw._row?' · row '+raw._row:''));
+    return {warehouse_id:warehouse.id,line:{item_id:item.id,shelf_id:shelf.id,storage_area_id:area.id,administrative_department_id:owner.id,quantity,batch_no:String(raw.batch_no||'').trim(),expiry_date:expiry||null,notes:String(raw.notes||'').trim()||null},warehouseLabel:codeOf(warehouse)+' · '+nameOf(warehouse)};
+  }
+  async function submitVouchers(rows){
+    if(!navigator.onLine)throw new Error(txText('يتطلب إنشاء الأرصدة اتصالاً مباشراً بقاعدة البيانات','Opening-balance creation requires a live database connection'));
+    const grouped=new Map(),dupes=new Set();
+    for(const raw of rows){const x=makeLine(raw,!!raw._manual);const key=[x.warehouse_id,x.line.item_id,x.line.shelf_id,x.line.administrative_department_id,x.line.batch_no].join('|');if(dupes.has(key))throw new Error(txText('يوجد تكرار للصنف والرف والإدارة والتشغيلة في الملف؛ اجمع الكميات في صف واحد.','Duplicate item/shelf/owner/batch row found; combine its quantity into one row.'));dupes.add(key);if(!grouped.has(x.warehouse_id))grouped.set(x.warehouse_id,{warehouse_id:x.warehouse_id,notes:txText('رصيد افتتاحي وارد من واجهة إدارة الأرصدة','Opening balance submitted through the opening-balance workspace'),lines:[]});grouped.get(x.warehouse_id).lines.push(x.line)}
+    const vouchers=[...grouped.values()];
+    if(!vouchers.length)throw new Error(txText('لا توجد صفوف صالحة','No valid rows found'));
+    showProcessing(txText('جارٍ التحقق وإنشاء سندات الأرصدة الافتتاحية…','Validating and creating opening-balance vouchers…'));
+    try{
+      await window.orshapSupabaseReady;
+      const client=window.orshapSupabase;
+      if(!client||typeof client.rpc!=='function')throw new Error('Supabase client is not ready');
+      const result=await client.rpc('create_opening_balance_vouchers',{p_vouchers:vouchers});
+      if(result.error)throw result.error;
+      const created=result.data?.created||[];
+      try{await window.orshapV12?.pull()}catch(e){console.warn('Opening vouchers created; refresh failed',e)}
+      state.modal=null;render();
+      showToast(txText('تم إنشاء ','Created ')+created.length+txText(' سند رصيد افتتاحي بانتظار الاعتماد. لم تُرحّل الكميات بعد.',' opening-balance voucher(s), pending approval. Quantities are not posted yet.'),'success');
+    }finally{hideProcessing()}
+  }
+  async function saveManual(){
+    const form=document.getElementById('ob-manual-form');if(!form)throw new Error('Opening balance form is unavailable');
+    const o=Object.fromEntries(new FormData(form).entries());o._manual=true;
+    await submitVouchers([o]);
+  }
+  async function importCsv(){
+    const file=document.getElementById('ob-csv-file')?.files?.[0];if(!file)throw new Error(txText('اختر ملف CSV أولاً','Choose a CSV file first'));
+    const textContent=await file.text();const rows=parseCsv(textContent);
+    const status=document.getElementById('ob-csv-status');if(status)status.textContent=txText('تم التحقق من بنية الملف. جارٍ التحقق من المراجع والكميات…','CSV structure parsed. Validating references and quantities…');
+    await submitVouchers(rows);
+  }
+  function downloadTemplate(){
+    const headers=['item_code','warehouse_code','storage_area_code','shelf_code','administrative_department_code','quantity','batch_no','expiry_date','notes'];
+    const sample=['ITEM-001','WH-001','AREA-001','SHELF-001','DEPT-001','10','OPENING','','Opening balance source reference'];
+    const csv='\uFEFF'+[headers,sample].map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n')+'\r\n';
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='ORSHAP-opening-balances-template.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+  }
+  const oldHandle=handleAction;
+  handleAction=function(action){
+    if(action==='ob-open'){if(!ownerAllowed())return say(txText('إنشاء الأرصدة الافتتاحية متاح للمدير أو المدير الأعلى فقط.','Opening balances are restricted to managers and super administrators.'),'Permission denied','error');return buildModal()}
+    if(action==='ob-save-manual')return saveManual().catch(e=>showToast(e?.message||String(e),'error'));
+    if(action==='ob-import-csv')return importCsv().catch(e=>showToast(e?.message||String(e),'error'));
+    if(action==='ob-template')return downloadTemplate();
+    return oldHandle(action);
+  };
+  document.addEventListener('change',function(e){
+    const el=e.target;if(!el.closest('#ob-manual-form'))return;
+    const form=el.closest('form'),wh=form.querySelector('#ob-warehouse'),area=form.querySelector('#ob-area'),shelf=form.querySelector('#ob-shelf');
+    if(el===wh){const areas=activeRows('storage_areas').filter(x=>x.warehouse_id===wh.value);area.innerHTML=opts(areas,'',x=>(codeOf(x)+' · '+nameOf(x)),txText('اختر المنطقة','Select storage area'));shelf.innerHTML=opts([],'',x=>nameOf(x),txText('اختر الرف','Select shelf'));return}
+    if(el===area){const shelves=activeRows('shelves').filter(x=>x.warehouse_id===wh.value&&x.storage_area_id===area.value);shelf.innerHTML=opts(shelves,'',x=>(codeOf(x)+' · '+(x.full_path||nameOf(x))),txText('اختر الرف','Select shelf'));return}
+  });
+})();
