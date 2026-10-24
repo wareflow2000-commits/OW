@@ -1046,7 +1046,7 @@ try{render()}catch(e){console.error('V10 final render failed',e)}
     const returnRef=returnMode?`<div class="field"><label>${escv(state.lang==='ar'?(supplierMode?'رقم مستند المورد':'رقم مستند المرتجع / المرجع الخارجي'):(supplierMode?'Supplier document reference':'Return / external reference'))}</label><input name="external_reference" value="${escv(d.external_reference||'')}" ${supplierMode?'':'required'}></div>`:'';
     const supplierField=supplierMode?`<div class="field"><label>${escv(t.supplier||'Supplier')}</label><input name="supplier" required value="${escv(d.supplier||'')}"></div>`:'';
     const ownerStockRows=(supplierMode||isTransfer)?v13TxStockRows(d.item_id||'',d.source_warehouse_id||'',d.source_shelf_id||'').filter(row=>!d.batch_no||String(row.batch_no||'')===String(d.batch_no)):[];
-    const ownerIds=[...new Set(ownerStockRows.map(row=>row.administrative_department_id||'__UNASSIGNED__'))];
+    const ownerIds=[...new Set(ownerStockRows.map(row=>row.administrative_department_id).filter(Boolean))];
     const activeOwners=v5All('administrative_departments').filter(dep=>dep.is_active!==false&&String(dep.status||'ACTIVE').toUpperCase()!=='INACTIVE'&&ownerIds.includes(dep.id));
     const ownerOptions=(supplierMode||isTransfer)?activeOwners:[];
     const ownerSelected=ownerOptions.some(dep=>dep.id===d.administrative_department_id)?d.administrative_department_id:(ownerOptions.length===1?ownerOptions[0].id:'');
