@@ -1,7 +1,7 @@
 -- ORSHAP WMS v13.9.58
--- Make the stock owner a first-class transfer dimension. No stock rows are backfilled or mutated.
+-- Preserve the stock-owning department across transfer dispatch and posting.
+-- No stock rows are backfilled or modified by this migration.
 BEGIN;
-
 CREATE OR REPLACE FUNCTION public.dispatch_stock_transfer(p_transfer_id uuid, p_reference_no text, p_item_id uuid, p_administrative_department_id uuid, p_quantity numeric, p_batch_no text DEFAULT ''::text, p_expiry_date date DEFAULT NULL::date, p_source_shelf_id uuid DEFAULT NULL::uuid, p_destination_shelf_id uuid DEFAULT NULL::uuid, p_notes text DEFAULT NULL::text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -31,13 +31,12 @@ BEGIN
  SELECT * INTO v_dst FROM public.shelves WHERE id=p_destination_shelf_id;
  IF NOT FOUND THEN RAISE EXCEPTION 'Destination shelf not found'; END IF;
  IF v_profile.role NOT IN ('SUPER_ADMIN','ADMIN','MANAGER') AND (cardinality(COALESCE(v_profile.assigned_warehouse_ids,ARRAY[]::uuid[]))=0 OR NOT(v_src.warehouse_id=ANY(v_profile.assigned_warehouse_ids))) THEN RAISE EXCEPTION 'User is not assigned to the source warehouse'; END IF;
- IF v_owner IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.administrative_departments WHERE id=v_owner AND is_active=true) THEN RAISE EXCEPTION 'Stock owner is missing or inactive'; END IF;
- IF v_src.warehouse_id<>v_dst.warehouse_id AND v_owner IS NULL THEN RAISE EXCEPTION 'Cross-warehouse transfer requires an active stock-owning department'; END IF;
+ IF v_owner IS NULL OR NOT EXISTS(SELECT 1 FROM public.administrative_departments WHERE id=v_owner AND is_active=true) THEN RAISE EXCEPTION 'Transfer requires an active stock-owning department'; END IF;
  IF NOT EXISTS(SELECT 1 FROM public.items WHERE id=p_item_id) THEN RAISE EXCEPTION 'Item not found'; END IF;
  SELECT code,name_en INTO v_item_code,v_item_name FROM public.items WHERE id=p_item_id;
  v_src_area:=v_src.storage_area_id;
  v_dst_area:=v_dst.storage_area_id;
- FOR v_lock_key IN SELECT k FROM (VALUES(p_item_id::text||':'||p_source_shelf_id::text||':'||v_batch||':'||COALESCE(v_owner::text,'<unassigned>')),(p_item_id::text||':'||p_destination_shelf_id::text||':'||v_batch||':'||COALESCE(v_owner::text,'<unassigned>'))) q(k) ORDER BY k LOOP
+ FOR v_lock_key IN SELECT k FROM (VALUES(p_item_id::text||':'||p_source_shelf_id::text||':'||v_batch||':'||v_owner::text),(p_item_id::text||':'||p_destination_shelf_id::text||':'||v_batch||':'||v_owner::text)) q(k) ORDER BY k LOOP
   PERFORM pg_advisory_xact_lock(hashtextextended(v_lock_key,0));
  END LOOP;
  SELECT quantity,expiry_date INTO v_src_qty,v_source_expiry FROM public.stock WHERE item_id=p_item_id AND shelf_id=p_source_shelf_id AND batch_no=v_batch AND administrative_department_id IS NOT DISTINCT FROM v_owner FOR UPDATE;
@@ -76,7 +75,6 @@ BEGIN
  RETURN jsonb_build_object('success',true,'already_processed',false,'transfer_id',p_transfer_id,'status',v_status,'source_transaction_id',v_src_tx,'destination_transaction_id',v_dst_tx,'source_balance_after',v_src_after,'destination_balance_after',CASE WHEN v_status='COMPLETED' THEN v_dst_after ELSE NULL END);
 END;$function$
 ;
-
 CREATE OR REPLACE FUNCTION public.dispatch_stock_transfer(
  p_transfer_id uuid,
  p_reference_no text,
@@ -88,9 +86,7 @@ CREATE OR REPLACE FUNCTION public.dispatch_stock_transfer(
  p_destination_shelf_id uuid DEFAULT NULL::uuid,
  p_notes text DEFAULT NULL::text
 )
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
 SET search_path TO 'pg_catalog', 'public', 'auth', 'pg_temp'
 AS $function$
 DECLARE
@@ -102,51 +98,38 @@ DECLARE
  v_existing_found boolean := false;
  v_batch text := COALESCE(p_batch_no,'');
 BEGIN
- IF v_user IS NULL OR NOT public.current_user_is_active() THEN
-   RAISE EXCEPTION 'An active authenticated user is required';
- END IF;
- IF NOT public.current_user_has_permission('action:stock_transfer:create') THEN
-   RAISE EXCEPTION 'Permission denied to create stock transfers';
- END IF;
+ IF v_user IS NULL OR NOT public.current_user_is_active() THEN RAISE EXCEPTION 'An active authenticated user is required'; END IF;
+ IF NOT public.current_user_has_permission('action:stock_transfer:create') THEN RAISE EXCEPTION 'Permission denied to create stock transfers'; END IF;
  SELECT * INTO v_profile FROM public.profiles WHERE id=v_user AND status='ACTIVE';
  IF NOT FOUND THEN RAISE EXCEPTION 'Active user profile required'; END IF;
-
- SELECT administrative_department_id INTO v_owner
-   FROM public.stock_transfers WHERE id=p_transfer_id;
+ SELECT administrative_department_id INTO v_owner FROM public.stock_transfers WHERE id=p_transfer_id;
  v_existing_found := FOUND;
  IF v_existing_found THEN
    RETURN public.dispatch_stock_transfer(p_transfer_id,p_reference_no,p_item_id,v_owner,p_quantity,p_batch_no,p_expiry_date,p_source_shelf_id,p_destination_shelf_id,p_notes);
  END IF;
-
  SELECT * INTO v_src FROM public.shelves WHERE id=p_source_shelf_id;
  IF NOT FOUND THEN RAISE EXCEPTION 'Source shelf not found'; END IF;
  IF v_profile.role NOT IN ('SUPER_ADMIN','ADMIN','MANAGER')
-    AND (cardinality(COALESCE(v_profile.assigned_warehouse_ids,ARRAY[]::uuid[]))=0
-         OR NOT (v_src.warehouse_id=ANY(v_profile.assigned_warehouse_ids))) THEN
+    AND (cardinality(COALESCE(v_profile.assigned_warehouse_ids,ARRAY[]::uuid[]))=0 OR NOT (v_src.warehouse_id=ANY(v_profile.assigned_warehouse_ids))) THEN
    RAISE EXCEPTION 'User is not assigned to the source warehouse';
  END IF;
-
  SELECT count(*), (array_agg(owner_id ORDER BY owner_id NULLS FIRST))[1]
    INTO v_owner_count, v_owner
    FROM (
      SELECT administrative_department_id AS owner_id
        FROM public.stock
-      WHERE item_id=p_item_id AND shelf_id=p_source_shelf_id
-        AND batch_no=v_batch AND quantity >= p_quantity
+      WHERE item_id=p_item_id AND shelf_id=p_source_shelf_id AND batch_no=v_batch AND quantity >= p_quantity
       GROUP BY administrative_department_id
      HAVING sum(quantity) >= p_quantity
    ) eligible;
- IF v_owner_count <> 1 THEN
-   RAISE EXCEPTION 'Transfer requires exactly one eligible stock owner; choose the owner in the current client';
+ IF v_owner_count <> 1 OR v_owner IS NULL THEN
+   RAISE EXCEPTION 'Transfer requires exactly one active stock owner; select the owner in the current client';
  END IF;
-
  RETURN public.dispatch_stock_transfer(p_transfer_id,p_reference_no,p_item_id,v_owner,p_quantity,p_batch_no,p_expiry_date,p_source_shelf_id,p_destination_shelf_id,p_notes);
 END;
 $function$;
-
 REVOKE ALL ON FUNCTION public.dispatch_stock_transfer(uuid,text,uuid,uuid,numeric,text,date,uuid,uuid,text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.dispatch_stock_transfer(uuid,text,uuid,uuid,numeric,text,date,uuid,uuid,text) FROM anon;
 GRANT EXECUTE ON FUNCTION public.dispatch_stock_transfer(uuid,text,uuid,uuid,numeric,text,date,uuid,uuid,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.dispatch_stock_transfer(uuid,text,uuid,uuid,numeric,text,date,uuid,uuid,text) TO service_role;
-
 COMMIT;
