@@ -1,0 +1,6 @@
+-- ORSHAP WMS v13.9.58
+-- Audit note: the pg_graphql resolver is owned by Supabase's managed
+-- supabase_admin role. The connected SQL role cannot alter its ACL; attempted
+-- REVOKE statements did not change effective privileges. No schema changes
+-- are made by this migration. Keep this file to match the recorded migration
+-- history. GraphQL exposure remains an unresolved dashboard/owner-level task.
