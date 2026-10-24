@@ -19,6 +19,13 @@ if (/\b(?:zone_id|section_id)\b/.test(app)) {
 const localAssets = [...html.matchAll(/(?:src|href)="(\.\/[^"]+\.(?:js|css)(?:\?[^"]*)?)"/g)]
   .map(match => match[1]);
 const missing = localAssets.filter(asset => !worker.includes("'" + asset + "'"));
+const missingFiles = localAssets
+  .map(asset => asset.split('?')[0])
+  .filter(asset => !fs.existsSync(asset));
+if (missingFiles.length) {
+  console.error('index.html references missing local assets:', missingFiles.join(', '));
+  process.exitCode = 1;
+}
 if (missing.length) {
   console.error('Service-worker APP_SHELL is missing index.html assets:', missing.join(', '));
   process.exitCode = 1;
