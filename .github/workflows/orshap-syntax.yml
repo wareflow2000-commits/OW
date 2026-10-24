@@ -1,4 +1,4 @@
-name: ORSHAP WMS syntax validation
+name: ORSHAP WMS syntax and visual validation
 
 on:
   push:
@@ -38,3 +38,26 @@ jobs:
         run: node scripts/check-ui-layout-contracts.cjs
       - name: Validate CSS structure
         run: node scripts/check-css-structure.cjs
+      - name: Install Playwright browser test dependency
+        run: |
+          npm install --no-save --no-package-lock playwright
+          npx playwright install --with-deps chromium
+      - name: Start static app server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/orshap-http.log 2>&1 &
+          echo $! > /tmp/orshap-http.pid
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4173/ > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/orshap-http.log
+          exit 1
+      - name: Run desktop and mobile browser smoke tests
+        run: node scripts/visual-smoke.cjs
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orshap-visual-smoke-screenshots
+          path: artifacts/visual-smoke/
+          if-no-files-found: warn
