@@ -217,23 +217,22 @@ function v8Field(label,name,value='',type='text',extra=''){return `<div class="f
 function v8Select(label,name,list,value='',labelFn){return `<div class="field"><label>${esc(label)}</label><select name="${esc(name)}"><option value="">${esc(T().select)}</option>${v8Opts(list,value,labelFn)}</select></div>`}
 function v8OpenForm(title,formId,body,saveAction='v8-save-form'){state.v8FormId=formId;state.modal=v5Modal(title,body,`<button class="btn ghost" data-action="close-modal">${esc(T().cancel)}</button><button class="btn primary" data-action="${saveAction}">${esc(T().save)}</button>`);render()}
 function v8Facilities(){
-  v8Ensure(); const t=T();
-  if(!state.v8FacilityWarehouseId && V5_DB.warehouses[0]) state.v8FacilityWarehouseId=V5_DB.warehouses[0].id;
-  const wid=state.v8FacilityWarehouseId;
-  const wh= v5Find('warehouses',wid);
-  const zones=v5All('zones').filter(x=>x.warehouse_id===wid);
-  const sections=v5All('sections').filter(x=>x.warehouse_id===wid);
+  v8Ensure(); const t=T(), whs=v5All('warehouses').filter(w=>c10AccessibleWarehouse(w.id));
+  if(!whs.some(w=>w.id===state.v8FacilityWarehouseId))state.v8FacilityWarehouseId=whs.length===1?whs[0].id:'';
+  const wid=state.v8FacilityWarehouseId||'',wh=v5Find('warehouses',wid);
+  const areas=v5All('storage_areas').filter(a=>a.warehouse_id===wid);
+  const categories=v5All('item_categories');
   const shelves=v5All('shelves').filter(x=>x.warehouse_id===wid);
-  const whRows=v5All('warehouses').map(w=>`<tr><td><b>${esc(w.code)}</b></td><td>${esc(w.name)}</td><td><button class="btn small primary" data-action="v8-select-wh:${w.id}">${state.lang==='ar'?'إدارة':'Manage'}</button></td></tr>`);
-  const zoneRows=zones.map(z=>`<tr><td>${esc(z.code)}</td><td>${esc(z.name)}</td><td>${sections.filter(s=>s.zone_id===z.id).length}</td></tr>`);
-  const secRows=sections.map(s=>`<tr><td>${esc(s.code)}</td><td>${esc(s.name)}</td><td>${esc(zones.find(z=>z.id===s.zone_id)?.name||'-')}</td></tr>`);
-  const shelfRows=shelves.map(s=>`<tr><td>${esc(s.code)}</td><td>${esc(sections.find(x=>x.id===s.section_id)?.name||'-')}</td><td>${esc(zones.find(x=>x.id===s.zone_id)?.name||'-')}</td><td><button class="btn small" data-action="v8-print-shelf:${s.id}">${esc(t.print)}</button></td></tr>`);
-  return pageHead(t.facility,t.facilitySub,`<button class="btn primary" data-action="v8-open-wh">＋ ${esc(t.addWarehouse)}</button>`)+
-    `<div class="grid grid-2"><div class="card"><div class="card-head"><div class="card-title">${esc(t.warehouse)}</div><button class="btn sm ghost" data-action="v8-open-wh">＋</button></div>${table([t.code,t.name,t.actions],whRows,t.noData)}</div>`+
-    `<div class="card"><div class="card-head"><div class="card-title">${esc(t.warehouse)} ${wh?`— ${esc(wh.name)}`:''}</div>${wh?`<span class="badge green">${esc(wh.code)}</span>`:''}</div><div class="card-body">${wh?v8Select('','v8-wid',v5All('warehouses'),wid,x=>`${x.name} (${x.code})`):empty(t.noData)}</div></div></div>`+
-    `<div class="grid grid-2" style="margin-top:16px"><div class="card"><div class="card-head"><div class="card-title">${esc(t.zonesIn)}</div><button class="btn sm primary" ${wh?'':'disabled'} data-action="v8-open-zone">＋</button></div>${table([t.code,t.name,state.lang==='ar'?'الأقسام':'Sections'],zoneRows,t.noData)}</div>`+
-    `<div class="card"><div class="card-head"><div class="card-title">${state.lang==='ar'?'الأقسام':'Sections'}</div><button class="btn sm primary" ${wh?'':'disabled'} data-action="v8-open-section">＋</button></div>${table([t.code,t.name,t.zone],secRows,t.noData)}</div></div>`+
-    `<div class="card" style="margin-top:16px"><div class="card-head"><div class="card-title">${esc(t.shelvesQR)}</div><button class="btn sm primary" ${wh?'':'disabled'} data-action="v8-open-shelf">＋</button></div>${table([t.code,state.lang==='ar'?'القسم':'Section',t.zone,t.actions],shelfRows,t.noData)}</div>`;
+  const whRows=whs.map(w=>`<tr><td><b>${esc(w.code)}</b></td><td>${esc(w.name)}</td><td><button class="btn small primary" data-action="v8-select-wh:${w.id}">${state.lang==='ar'?'إدارة':'Manage'}</button></td></tr>`);
+  const areaRows=areas.map(a=>`<tr><td>${esc(a.code)}</td><td>${esc(a.name)}</td><td>${a.is_active===false?c10Badge('INACTIVE'):c10Badge('ACTIVE')}</td></tr>`);
+  const categoryRows=categories.map(c=>`<tr><td>${esc(c.code)}</td><td>${esc(c.name)}</td><td>${esc(c.description||'—')}</td><td>${c.is_active===false?c10Badge('INACTIVE'):c10Badge('ACTIVE')}</td><td><button class="btn small" data-action="v8-edit-category:${c.id}" ${orshapCanPermission('action:item:update')?'':'disabled'}>${esc(t.edit)}</button></td></tr>`);
+  const shelfRows=shelves.map(sh=>`<tr><td>${esc(sh.code)}</td><td>${esc(v5Find('storage_areas',sh.storage_area_id)?.name||'—')}</td><td>${esc(sh.full_path||'—')}</td><td><button class="btn small" data-action="v8-print-shelf:${sh.id}">${esc(t.print)}</button></td></tr>`);
+  return pageHead(t.facility,t.facilitySub,`<button class="btn primary" data-action="v8-open-wh" ${orshapCanPermission('action:zone:manage')?'':'disabled'}>＋ ${esc(t.addWarehouse)}</button>`)+
+    `<div class="grid grid-2"><div class="card"><div class="card-head"><div class="card-title">${esc(t.warehouse)}</div><button class="btn sm ghost" data-action="v8-open-wh" ${orshapCanPermission('action:zone:manage')?'':'disabled'}>＋</button></div>${table([t.code,t.name,t.actions],whRows,t.noData)}</div>`+
+    `<div class="card"><div class="card-head"><div class="card-title">${esc(t.warehouse)} ${wh?`— ${esc(wh.name)}`:''}</div>${wh?`<span class="badge green">${esc(wh.code)}</span>`:''}</div><div class="card-body">${wh?v8Select('','v8-wid',whs,wid,x=>`${x.name} (${x.code})`):empty(t.noData)}</div></div></div>`+
+    `<div class="grid grid-2" style="margin-top:16px"><div class="card"><div class="card-head"><div class="card-title">${state.lang==='ar'?'مناطق التخزين':'Storage Areas'}</div><button class="btn sm primary" data-action="v8-open-area" ${wh&&orshapCanPermission('action:zone:manage')?'':'disabled'}>＋</button></div>${table([t.code,t.name,state.lang==='ar'?'الحالة':'Status'],areaRows,t.noData)}</div>`+
+    `<div class="card"><div class="card-head"><div class="card-title">${state.lang==='ar'?'تصنيفات الأصناف':'Item Categories'}</div><button class="btn sm primary" data-action="v8-open-section" ${orshapCanPermission('action:item:create')?'':'disabled'}>＋</button></div>${table([t.code,t.name,state.lang==='ar'?'الوصف':'Description',state.lang==='ar'?'الحالة':'Status',t.actions],categoryRows,t.noData)}</div></div>`+
+    `<div class="card" style="margin-top:16px"><div class="card-head"><div class="card-title">${esc(t.shelvesQR)}</div><button class="btn sm primary" ${wh&&areas.length&&orshapCanPermission('action:zone:manage')?'':'disabled'} data-action="v8-open-shelf">＋</button></div>${table([t.code,state.lang==='ar'?'منطقة التخزين':'Storage Area',state.lang==='ar'?'المسار':'Full path',t.actions],shelfRows,t.noData)}</div>`;
 }
 function v8Inventory(){
   v8Ensure(); const t=T(); const q=(state.v8ItemSearch||'').trim().toLowerCase();
