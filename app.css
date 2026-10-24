@@ -1827,8 +1827,14 @@ body.v13-busy {
 }
 .v13-transaction-modal .v13-txn-editor #v12-tx-form > .form-grid {
   display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:14px 18px;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px 16px;
+}
+.v13-txn-mode-hint {
+  grid-column:1 / -1;
+  margin:0;
+  font-size:12px;
+  line-height:1.65;
 }
 .v13-transaction-modal .v13-txn-editor #v12-tx-form > .form-grid > .field.full {
   grid-column:1 / -1;
@@ -1995,6 +2001,12 @@ body.v13-busy {
   cursor:not-allowed;
   transform:none;
   box-shadow:none;
+}
+@media(max-width:760px) {
+  .v13-transaction-modal .v13-txn-editor #v12-tx-form > .form-grid {
+    grid-template-columns:minmax(0,1fr);
+    gap:10px;
+  }
 }
 @media(max-width:1000px) {
   .v13-txn-split {
