@@ -29,7 +29,7 @@ has(css, /@media\s*\(max-width:\s*800px\)[\s\S]*?\.v13-bottom-nav,\s*\.bottom-na
   'Mobile bottom navigation must remain fixed.');
 has(css, /\.v13-bottom-nav,\s*\.bottom-nav\s*\{[^}]*grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/s,
   'Mobile navigation must have five columns.');
-const nav = app.match(/function v13BottomNav\(\)\s*\{\s*return \`([\s\S]*?)\`;\s*\}/);
+const nav = app.match(/function v13BottomNav\(\)\s*\{\s*return \`([\s\S]*?)\`\s*\}/);
 assert.ok(nav, 'Mobile navigation renderer must exist.');
 const buttons = [...nav[1].matchAll(/<button\b/g)].length;
 assert.equal(buttons, 5, 'Mobile navigation must render exactly five actions.');
