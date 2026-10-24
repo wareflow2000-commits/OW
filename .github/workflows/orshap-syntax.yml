@@ -18,5 +18,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Validate app.js syntax
-        run: node --check app.js
+      - name: Validate application JavaScript syntax
+        run: |
+          set -eu
+          for file in app.js SQLite-db.js supabase-client.js sw.js; do
+            if [ -f "$file" ]; then
+              echo "Checking $file"
+              node --check "$file"
+            else
+              echo "Required JavaScript file missing: $file" >&2
+              exit 1
+            fi
+          done
