@@ -319,7 +319,7 @@ BEGIN
       END)
   );
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.create_stock_return_request(p_return_id uuid, p_return_type text, p_reference_no text, p_item_id uuid, p_administrative_department_id uuid, p_quantity numeric, p_batch_no text DEFAULT ''::text, p_expiry_date date DEFAULT NULL::date, p_shelf_id uuid DEFAULT NULL::uuid, p_supplier text DEFAULT NULL::text, p_external_reference text DEFAULT NULL::text, p_notes text DEFAULT NULL::text)
  RETURNS jsonb
@@ -379,7 +379,7 @@ BEGIN
  VALUES(v_user,'STOCK_RETURN_REQUEST_CREATED','TRANSACTION',p_return_id::text,v_shelf.warehouse_id,NULL,btrim(p_reference_no),jsonb_build_object('return_type',v_type,'item_id',p_item_id,'quantity',p_quantity,'batch_no',COALESCE(p_batch_no,''),'shelf_id',p_shelf_id,'storage_area_id',v_area,'administrative_department_id',v_owner,'supplier',p_supplier,'external_reference',p_external_reference));
  RETURN jsonb_build_object('success',true,'already_created',false,'transaction_id',p_return_id,'status','PENDING_APPROVAL');
 END;
-$function$
+$function$;
 
 -- Preserve the existing RPC signature for older clients, but do not let it
 -- create supplier returns without an unambiguous stock owner.
