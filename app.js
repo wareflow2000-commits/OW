@@ -384,90 +384,7 @@ document.addEventListener('input',e=>{if(e.target.matches('[data-s81-user-search
 document.addEventListener('change',e=>{if(e.target.matches('[data-s81-import]')){const file=e.target.files?.[0];if(file){state.s81ImportStatus=state.lang==='ar'?'جاري تحليل الملف...':'Processing...';render();const reader=new FileReader();reader.onload=()=>{try{const text=String(reader.result||'');const lines=text.split(/\r?\n/).filter(Boolean);if(lines.length<2)throw new Error('CSV is empty');const headers=lines[0].split(',').map(x=>x.trim().toLowerCase());let count=0;for(let i=1;i<lines.length;i++){const cols=lines[i].split(',').map(x=>x.trim().replace(/^"|"$/g,''));if((state.s81ImportType||'ITEMS')==='ITEMS'){const code=cols[headers.indexOf('code')]||'';if(!code)continue;const payload={code,name_en:cols[headers.indexOf('name_en')]||code,name_ar:cols[headers.indexOf('name_ar')]||cols[headers.indexOf('name_en')]||code,item_number:cols[headers.indexOf('item_number')]||'',base_unit:cols[headers.indexOf('base_unit')]||'PCS',purchase_unit:cols[headers.indexOf('purchase_unit')]||'',conversion_factor:Number(cols[headers.indexOf('conversion_factor')])||1,safety_stock:Number(cols[headers.indexOf('safety_stock')])||0,weight:Number(cols[headers.indexOf('weight')])||0,status:'ACTIVE'};const old=v5All('items').find(x=>x.code===code);if(old)Object.assign(old,payload);else V5_DB.items.push({...payload,id:uid(),created_at:v8Now()});count++}}v5Save();state.s81ImportStatus=(state.lang==='ar'?`اكتمل الاستيراد: ${count} صنف`:`Import completed: ${count} items`);render();}catch(err){state.s81ImportStatus=(state.lang==='ar'?'فشل الاستيراد: ':'Import failed: ')+err.message;render()}};reader.readAsText(file)}}});
 s81Ensure();render();
 /* V9 Transactions parity patch - derived from original Dashboard/Transactions/services */
-function v9TxEnsure(){
-  if(!Array.isArray(V5_DB.transaction_lines))V5_DB.transaction_lines=[];
-  if(!Array.isArray(V5_DB.inventory_ledger))V5_DB.inventory_ledger=[];
-  if(!Array.isArray(V5_DB.transaction_ledger))V5_DB.transaction_ledger=[];
-  if(!Array.isArray(V5_DB.sync_queue))V5_DB.sync_queue=[];
-}
-function v9TxUnitOptions(item){
-  const opts=[]; if(!item)return opts;
-  const base=item.base_unit||'BASE'; opts.push({id:base,name:base+' ('+(state.lang==='ar'?'أساسية':'Base')+')'});
-  const use=localStorage.getItem('orshap_use_unit_conversion')!=='false';
-  if(use && item.purchase_unit && item.purchase_unit!==base && Number(item.conversion_factor)>0) opts.push({id:item.purchase_unit,name:item.purchase_unit+' ('+(state.lang==='ar'?'شراء':'Purchase')+')'});
-  (item.unit_conversions||[]).forEach(c=>{if(c.unit_code && !opts.some(x=>x.id===c.unit_code))opts.push({id:c.unit_code,name:c.unit_code});});
-  return opts;
-}
-function v9TxBaseQty(line,item){
-  const q=Number(line.quantity||0); if(!item||!Number.isFinite(q))return 0;
-  const unit=line.unit||item.base_unit||'BASE'; if(unit===(item.base_unit||'BASE'))return q;
-  if(unit===item.purchase_unit)return q*(Number(item.conversion_factor)>0?Number(item.conversion_factor):1);
-  const c=(item.unit_conversions||[]).find(x=>x.unit_code===unit); return q*(Number(c?.factor)>0?Number(c.factor):1);
-}
-function v9TxLocations(warehouseId,zoneId){
-  const zones=v5All('zones').filter(z=>!warehouseId||z.warehouse_id===warehouseId);
-  const zone=zones.find(z=>z.id===zoneId)||zones[0];
-  const sections=v5All('sections').filter(s=>(zone? s.zone_id===zone.id : (!warehouseId||s.warehouse_id===warehouseId)));
-  const sec=sections[0];
-  const shelves=v5All('shelves').filter(sh=>sec?sh.section_id===sec.id:(zone?sh.zone_id===zone.id:false));
-  return {zones,zone,sections,sec,shelves};
-}
-function v9TxOpen(type){v8Err(state.lang==='ar'?'تم إيقاف مسار المعاملات القديم. استخدم نموذج «طلب جديد» المعتمد.':'Legacy transaction flow is retired. Use the approved New Request form.');return; /* legacy implementation retained temporarily for reference */
-  const inbound=type==='GRN'||type==='ADJUSTMENT_IN';
-  state.v9TxDraft={type,warehouse_id:'',zone_id:'',section_id:'',reference_no:type+'-'+Date.now(),external_reference:'',supplier:'',receiver_name:'',notes:'',lines:[{itemId:'',quantity:'1',unit:'',shelfId:'',batchNo:'',expiryDate:''}]};
-  state.v9TxOpen=true; state.modal=v9TxModal(); render();
-}
-function v9TxModal(){
-  const d=state.v9TxDraft||{}; const ar=state.lang==='ar', inbound=d.type==='GRN'||d.type==='ADJUSTMENT_IN';
-  const loc=v9TxLocations(d.warehouse_id,d.zone_id); if(!d.zone_id&&loc.zones[0]){ /* do not mutate draft before user selection */ }
-  const whs=v5All('warehouses');
-  const whSel=v5Select(ar?'المستودع':'Warehouse','v9_warehouse',whs,d.warehouse_id);
-  const zOpts=v9TxLocations(d.warehouse_id,d.zone_id).zones;
-  const zSel=v5Select(ar?'المنطقة / المخزن':'Zone / Area','v9_zone',zOpts,d.zone_id);
-  const lines=d.lines||[];
-  const lineHtml=lines.map((l,i)=>{
-    const item=v5Find('items',l.itemId)||{}; const units=v9TxUnitOptions(item); const locations=v9TxLocations(d.warehouse_id,d.zone_id);
-    const shelves=locations.shelves; const base=v9TxBaseQty(l,item);
-    return `<div class="card" style="margin-top:10px;border:1px solid var(--border)"><div class="card-body"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>${ar?'الصنف رقم':'Item'} ${i+1}</b>${lines.length>1?`<button class="btn small danger" data-action="v9-tx-del:${i}">${esc(T().delete)}</button>`:''}</div><div class="form-grid">${v5Select(ar?'الصنف':'Item','v9_item_'+i,v5All('items').map(x=>({id:x.id,name:(ar?x.name_ar:x.name_en)+' — '+x.code})),l.itemId)}${v5Select(ar?'الرف / الخانة':'Shelf / Bin','v9_shelf_'+i,shelves.map(x=>({id:x.id,name:x.code+(x.name?' — '+x.name:'')})),l.shelfId)}${v5Field(ar?'الكمية':'Quantity','v9_qty_'+i,l.quantity,'number','min="0.0001" step="any"')}${v5Select(ar?'الوحدة':'Unit','v9_unit_'+i,units,l.unit||item.base_unit||'')}${v5Field(ar?'التشغيلة':'Batch No.','v9_batch_'+i,l.batchNo||'')}${v5Field(ar?'تاريخ الصلاحية':'Expiry','v9_expiry_'+i,l.expiryDate||'','date')}</div><div class="muted" style="margin-top:6px">${ar?'يعادل':'Base quantity'}: <b>${Number.isFinite(base)?base.toFixed(4):'0'}</b> ${esc(item.base_unit||'')}</div></div></div>`;
-  }).join('');
-  const extra=inbound?(d.type==='GRN'?`${v5Field(T().invoiceNo,'v9_external',d.external_reference||'')}${v5Field(T().supplier,'v9_supplier',d.supplier||'')}`:''):(d.type==='ISSUE'?`${v5Field(T().usageDest,'v9_external',d.external_reference||'')}${v5Field(T().receiver,'v9_receiver',d.receiver_name||'')}`:'');
-  const body=`<div><div class="tabs"><button class="tab ${inbound&&d.type==='GRN'?'active':''}" data-action="v9-tx-type:GRN">${ar?'توريد مشتريات':'Purchase (GRN)'}</button><button class="tab ${inbound&&d.type==='ADJUSTMENT_IN'?'active':''}" data-action="v9-tx-type:ADJUSTMENT_IN">${ar?'تسوية زيادة':'Adjustment In'}</button><button class="tab ${!inbound&&d.type==='ISSUE'?'active':''}" data-action="v9-tx-type:ISSUE">${ar?'صرف':'Issue'}</button><button class="tab ${!inbound&&d.type==='ADJUSTMENT_OUT'?'active':''}" data-action="v9-tx-type:ADJUSTMENT_OUT">${ar?'تسوية نقص':'Adjustment Out'}</button></div><div class="card" style="margin-top:12px"><div class="card-body"><div class="form-grid">${whSel}${zSel}${v5Field(T().refNo,'v9_ref',d.reference_no||'')}${extra}</div></div></div><div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center"><b>${esc(inbound?T().itemsReceived:T().itemsIssue)}</b><button class="btn small" data-action="v9-tx-add">＋ ${esc(T().add)}</button></div>${lineHtml}<div style="margin-top:12px">${v5Field(d.type==='ADJUSTMENT_OUT'?(ar?'سبب النقص/التلف':'Reason for adjustment'):T().notes,'v9_notes',d.notes||'')}</div></div>`;
-  return v5Modal(ar?(inbound?'إنشاء وارد / تسوية':'إنشاء صادر / تسوية'):(inbound?'Inbound / Adjustment':'Outbound / Adjustment'),body,`<button class="btn ghost" data-action="close-modal">${esc(T().cancel)}</button><button class="btn primary" data-action="v9-tx-save">${esc(T().create)}</button>`);
-}
-function v9TxReadDraft(){
-  const d=state.v9TxDraft; if(!d)return;
-  d.warehouse_id=document.querySelector('[name=v9_warehouse]')?.value||d.warehouse_id;
-  d.zone_id=document.querySelector('[name=v9_zone]')?.value||d.zone_id;
-  d.reference_no=document.querySelector('[name=v9_ref]')?.value?.trim()||d.reference_no;
-  d.external_reference=document.querySelector('[name=v9_external]')?.value?.trim()||'';
-  d.supplier=document.querySelector('[name=v9_supplier]')?.value?.trim()||'';
-  d.receiver_name=document.querySelector('[name=v9_receiver]')?.value?.trim()||'';
-  d.notes=document.querySelector('[name=v9_notes]')?.value?.trim()||'';
-  d.lines=(d.lines||[]).map((l,i)=>({...l,itemId:document.querySelector(`[name=v9_item_${i}]`)?.value||l.itemId,shelfId:document.querySelector(`[name=v9_shelf_${i}]`)?.value||l.shelfId,quantity:document.querySelector(`[name=v9_qty_${i}]`)?.value||l.quantity,unit:document.querySelector(`[name=v9_unit_${i}]`)?.value||l.unit,batchNo:document.querySelector(`[name=v9_batch_${i}]`)?.value||'',expiryDate:document.querySelector(`[name=v9_expiry_${i}]`)?.value||''}));
-}
-function v9TxSave(){
-  v9TxReadDraft(); const d=state.v9TxDraft; if(!d)return;
-  if(!d.warehouse_id||!d.zone_id){toast(state.lang==='ar'?'اختر المستودع والمنطقة أولاً':'Select warehouse and zone first','error');return}
-  const valid=d.lines.filter(l=>l.itemId&&l.shelfId&&Number(l.quantity)>0); if(!valid.length||valid.length!==d.lines.length){toast(state.lang==='ar'?'أكمل بيانات جميع أسطر المعاملة':'Complete every transaction line','error');return}
-  v9TxEnsure(); const loc=v9TxLocations(d.warehouse_id,d.zone_id); const txId=uid();
-  const tx={id:txId,transaction_type:d.type,status:'PENDING_APPROVAL',reference_no:d.reference_no||d.type+'-'+Date.now(),warehouse_id:d.warehouse_id,zone_id:d.zone_id,section_id:loc.sec?.id||null,external_reference:(d.type==='GRN'||d.type==='ISSUE')?d.external_reference:null,supplier:d.type==='GRN'?d.supplier:null,receiver_name:d.type==='ISSUE'?d.receiver_name:null,notes:d.notes||null,rejection_reason:null,created_by:state.session?.id||null,created_at:v9TxNow()};
-  const lines=valid.map(l=>({id:uid(),transaction_id:txId,item_id:l.itemId,shelf_id:l.shelfId,quantity:v9TxBaseQty(l,v5Find('items',l.itemId)),batch_no:l.batchNo||null,expiry_date:l.expiryDate||null,balance_before:0,balance_after:0,notes:d.notes||null,created_at:v9TxNow(),unit:l.unit||v5Find('items',l.itemId)?.base_unit||'BASE'}));
-  tx.total_qty=lines.reduce((n,l)=>n+Number(l.quantity||0),0); V5_DB.transactions.push(tx); V5_DB.transaction_lines.push(...lines); v7Audit('INSERT','transactions',txId,{reference:tx.reference_no,type:tx.transaction_type,line_count:lines.length,total_qty:tx.total_qty}); v7Queue('transactions','INSERT',tx); lines.forEach(l=>v7Queue('transaction_lines','INSERT',l)); v5Save(); state.v9TxDraft=null; state.v9TxOpen=false; closeModal(); toast(T().create+' ✓'); render();
-}
-function v9TxNow(){return new Date().toISOString()}
-function v9TxApprove(id){
-  v9TxEnsure(); const tx=v5Find('transactions',id); if(!tx||tx.status!=='PENDING_APPROVAL')return; const lines=v7Lines(tx); const inbound=['GRN','RETURN_FROM_USAGE','RETURN_FROM_CUSTOMER','ADJUSTMENT_IN','OPENING_BALANCE'].includes(tx.transaction_type);
-  for(const l of lines){const st=v7Stock(l.item_id,l.shelf_id);const before=Number(st?.quantity||0);if(!inbound&&before<Number(l.quantity)){toast(state.lang==='ar'?'الرصيد غير كافٍ في أحد الرفوف':'Insufficient stock on one of the selected shelves','error');return}}
-  for(const l of lines){let st=v7Stock(l.item_id,l.shelf_id);const before=Number(st?.quantity||0),delta=(inbound?1:-1)*Number(l.quantity),after=before+delta;if(st){st.quantity=after;st.updated_at=v9TxNow()}else{st={id:uid(),item_id:l.item_id,shelf_id:l.shelf_id,warehouse_id:tx.warehouse_id,zone_id:tx.zone_id,section_id:tx.section_id,quantity:after,opening_balance:0,created_at:v9TxNow(),updated_at:v9TxNow()};V5_DB.stock.push(st)}l.balance_before=before;l.balance_after=after;v7Ledger(tx,l,delta,before,after);v7Queue('stock','UPDATE',st,st.version||0)}
-  tx.status='APPROVED';tx.approved_at=v9TxNow();v7Audit('APPROVE','transactions',tx.id,{line_count:lines.length});v7Queue('transactions','UPDATE',tx);v5Save();toast(T().approve+' ✓');render();
-}
-function v9TxDetail(tx){
-  const ar=state.lang==='ar',lines=v7Lines(tx); return v5Modal((tx.transaction_type||'').replace(/_/g,' ')+' - '+tx.reference_no,`<div class="grid grid-2"><div class="callout">${esc(T().status)}: <b>${esc(tx.status)}</b></div><div class="callout">${esc(T().date)}: <b>${new Date(tx.created_at).toLocaleString()}</b></div></div><div class="card" style="margin-top:12px"><div class="card-body"><div class="table-wrap"><table class="table"><thead><tr><th>${ar?'الصنف':'Item'}</th><th>${ar?'التشغيلة':'Batch'}</th><th>${ar?'الصلاحية':'Expiry'}</th><th>${ar?'الوحدة':'Unit'}</th><th>${T().qty}</th></tr></thead><tbody>${lines.map(l=>{const i=v5Find('items',l.item_id)||{};return `<tr><td><b>${esc(ar?i.name_ar:i.name_en)}</b><div class="muted">${esc(i.code||'')}</div></td><td>${esc(l.batch_no||'-')}</td><td>${esc(l.expiry_date||'-')}</td><td>${esc(l.unit||i.base_unit||'-')}</td><td><b>${esc(l.quantity)}</b></td></tr>`}).join('')}</tbody></table></div></div></div>${tx.notes?`<div class="callout" style="margin-top:10px">${esc(tx.notes)}</div>`:''}`,`<button class="btn ghost" data-action="close-modal">${esc(T().cancel)}</button>${tx.status==='PENDING_APPROVAL'?`<button class="btn danger" data-action="v9-reject:${tx.id}">${esc(T().reject)}</button><button class="btn primary" data-action="v9-approve:${tx.id}">${esc(T().approve)}</button>`:''}`);
-}
-function v9Transactions(){
-  const t=T(),filter=state.v9TxFilter||'ALL',all=v5All('transactions').slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))),rows=all.filter(x=>filter==='ALL'||x.status===filter); const tabs=[['ALL',state.lang==='ar'?'الكل':'All'],['PENDING_APPROVAL',t.pending],['APPROVED',t.approved],['REJECTED',t.rejected]];
-  return pageHead(t.transactions,state.lang==='ar'?'مراجعة حركات المخزون':'Review stock movements',`<button class="btn success" data-action="v9-open:GRN">＋ ${esc(t.createGRN)}</button><button class="btn primary" data-action="v9-open:ISSUE">＋ ${esc(t.createIssue)}</button>`)+`<div class="tabs">${tabs.map(x=>`<button class="tab ${filter===x[0]?'active':''}" data-action="v9-filter:${x[0]}">${esc(x[1])}</button>`).join('')}</div><div class="grid" style="margin-top:14px">${rows.map(x=>{const inbound=['GRN','RETURN_FROM_USAGE','RETURN_FROM_CUSTOMER','ADJUSTMENT_IN'].includes(x.transaction_type);return `<div class="card" data-action="v9-detail:${x.id}" style="cursor:pointer"><div class="card-body"><div style="display:flex;justify-content:space-between;gap:12px"><div><b>${esc(x.reference_no)}</b><span class="badge ${x.status==='APPROVED'?'good':x.status==='REJECTED'?'bad':'warn'}" style="margin-inline-start:8px">${esc(x.status)}</span><div class="muted" style="margin-top:5px">${esc(x.transaction_type.replace(/_/g,' '))} · ${new Date(x.created_at).toLocaleString()}</div></div><div style="text-align:end"><div class="muted">${state.lang==='ar'?'الأصناف':'Items'}</div><b class="stat-value">${v7Lines(x).length}</b></div></div><div class="muted" style="margin-top:10px">${inbound?'↓':'↑'} ${esc(v7Lines(x).reduce((n,l)=>n+Number(l.quantity||0),0).toFixed(4))} ${state.lang==='ar'?'وحدة أساسية':'base units'}</div></div></div>`}).join('')||empty(t.noData)}</div>`;
-}
+function v9TxOpen(type){toast(state.lang==='ar'?'مسار المعاملات القديم متوقف. استخدم نموذج «طلب جديد».':'Legacy transaction flow is retired. Use the approved New Request form.','error');return;}
 const __v9PrevHandle=handleAction;
 handleAction=function(a){
   if(a==='v9-open:GRN'||a==='v9-open:ISSUE'){v9TxOpen(a.endsWith('GRN')?'GRN':'ISSUE');return}
@@ -477,7 +394,6 @@ handleAction=function(a){
   }
   __v9PrevHandle(a);
 };
-transactions=v9Transactions;
 /* ===== V10 complete parity layer: Dashboard / Stocktake / Reports / Sync / Permissions ===== */
 function c10Ensure(){
   v8Ensure();
