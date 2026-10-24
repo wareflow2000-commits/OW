@@ -10,7 +10,7 @@ if (missing.length) {
   console.error('Service-worker APP_SHELL is missing index.html assets:', missing.join(', '));
   process.exitCode = 1;
 }
-if (!/const isAppAsset = \/\.\(\?:js\|css\)\$\/\.test\(url\.pathname\);/.test(worker)) {
+if (!worker.includes(String.raw`const isAppAsset = /\.(?:js|css)$/.test(url.pathname);`)) {
   console.error('Service-worker app asset matcher is missing or malformed.');
   process.exitCode = 1;
 }
