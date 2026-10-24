@@ -98,6 +98,19 @@ const { chromium } = require('playwright');
     assert.equal(mobileShell.navPosition, 'fixed', 'Mobile bottom navigation must be fixed.');
     assert.equal(mobileShell.topbarPosition, 'fixed', 'Mobile topbar must be fixed.');
     assert.ok(mobileShell.navBottom >= 843, 'Mobile bottom navigation must reach the viewport bottom.');
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForTimeout(100);
+    const mobileBottomReachability = await page.evaluate(() => {
+      const nav = document.querySelector('.v13-bottom-nav').getBoundingClientRect();
+      const pageContent = document.querySelector('.page');
+      const lastContent = pageContent.lastElementChild.getBoundingClientRect();
+      const topbar = document.querySelector('.v13-topbar').getBoundingClientRect();
+      return { navTop: nav.top, lastContentBottom: lastContent.bottom, topbarTop: topbar.top, scrollY: window.scrollY };
+    });
+    assert.ok(mobileBottomReachability.scrollY > 0, 'Mobile document must scroll when content exceeds the viewport.');
+    assert.ok(mobileBottomReachability.lastContentBottom <= mobileBottomReachability.navTop + 1, 'The final content block must be reachable above the fixed bottom navigation.');
+    assert.ok(mobileBottomReachability.topbarTop <= 1, 'Fixed mobile topbar must remain anchored at the viewport top while scrolling.');
+    await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: path.join(outDir, 'mobile-shell-ar.png'), fullPage: true });
 
     await page.locator('.v13-bottom-nav [data-page="transactions"]').click();
