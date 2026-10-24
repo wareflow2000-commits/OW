@@ -20,7 +20,7 @@ const { chromium } = require('playwright');
     assert.equal(await page.locator('html').getAttribute('dir'), 'rtl', 'Arabic login must default to RTL.');
     assert.equal(await page.locator('.login-card').count(), 1, 'Login card must render once.');
 
-    await page.locator('#auth-form [data-action="toggle-lang"]').click();
+    await page.locator('.login-preferences button').first().click();
     await page.waitForFunction(() => document.documentElement.dir === 'ltr');
     assert.match(await page.locator('.login-welcome').innerText(), /Welcome back/i);
     await page.screenshot({ path: path.join(outDir, 'desktop-login-en.png'), fullPage: true });
