@@ -5479,6 +5479,11 @@ button, input, select, textarea {
     display: block;
   }
 }
+/* Desktop must never render the mobile-only bottom navigation. */
+.v13-bottom-nav {
+  display: none;
+}
+
 /* Mobile: fixed header/footer; the document content remains the only page scroller. */
 @media (max-width: 800px) {
   html, body {
