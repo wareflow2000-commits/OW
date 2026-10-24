@@ -9,7 +9,7 @@ Branch: audit/v13.9.58-dropdown-unification
 - 73 functions in public are marked SECURITY DEFINER.
 - 34 of those functions are executable by authenticated; none of the 73 are executable by anon according to has_function_privilege.
 - All 73 public SECURITY DEFINER functions have a pinned search_path setting in pg_proc.proconfig.
-- Reviewed exposed workflow functions and wrappers for identity/profile checks, permission checks or delegation to guarded canonical functions, warehouse scope, row/advisory locks, and duplicate-posting guards. In particular, the transfer-order legacy wrapper delegates to dispatch_stock_transfer_order_v2; the old one-shot receipt wrappers were explicitly revoked from PUBLIC, anon, and authenticated and verified non-executable after the direct ACL change.
+- Reviewed exposed workflow functions and wrappers for identity/profile checks, permission checks or delegation to guarded canonical functions, warehouse scope, row/advisory locks, and duplicate-posting guards. A read-only/rollback authorization test with an active CLERK confirmed that report access, transfer creation, and opening-balance creation are rejected when the required privileges are absent. In particular, the transfer-order legacy wrapper delegates to dispatch_stock_transfer_order_v2; the old one-shot receipt wrappers were explicitly revoked from PUBLIC, anon, and authenticated and verified non-executable after the direct ACL change.
 - Live reconciliation after concurrent return confirmation and cleanup: stock rows = 1; stock total = 100; inventory-ledger delta total = 100; transaction-ledger quantity total = 100; no test transfer, test transaction, or receipt-idempotency rows remain.
 - The static application and Supabase client source contain no GraphQL client calls; the app uses PostgREST/Auth.
 
@@ -33,7 +33,7 @@ The remaining 34-function warning is not itself proof of a vulnerability. It is 
 
 Playwright Chromium runs against a temporary static HTTP server for the repository checkout in GitHub Actions; it does not create a second database or mutate stock. Screenshots are attached to the successful workflow run as the orshap-visual-smoke-screenshots artifact. The test covers Arabic/English login, RTL/LTR desktop layout, mobile layout, fixed mobile navigation, five mobile actions, page navigation, horizontal overflow, and uncaught page errors.
 
-The visual review found and corrected one real UI defect: the mobile bottom navigation was visible on desktop. The CSS now hides it by default and the Playwright test asserts it is hidden at desktop width.
+The visual review found and corrected one real UI defect: the mobile bottom navigation was visible on desktop. The CSS now hides it by default and the Playwright test asserts it is hidden at desktop width. The test also scrolls to the end of the mobile document and verifies the last content block can be reached above the fixed navigation while the topbar stays anchored.
 
 ## Merge gate
 
