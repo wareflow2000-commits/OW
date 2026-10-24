@@ -1,0 +1,63 @@
+name: ORSHAP WMS syntax and visual validation
+
+on:
+  push:
+    branches:
+      - audit/v13.9.58-dropdown-unification
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  javascript-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate application JavaScript syntax
+        run: |
+          set -eu
+          for file in app.js SQLite-db.js supabase-client.js sw.js; do
+            if [ -f "$file" ]; then
+              echo "Checking $file"
+              node --check "$file"
+            else
+              echo "Required JavaScript file missing: $file" >&2
+              exit 1
+            fi
+          done
+      - name: Validate offline app-shell references
+        run: node scripts/check-app-shell.cjs
+      - name: Validate critical RPC idempotency contracts
+        run: node scripts/check-critical-rpc-contracts.cjs
+      - name: Validate UI layout contracts
+        run: node scripts/check-ui-layout-contracts.cjs
+      - name: Validate CSS structure
+        run: node scripts/check-css-structure.cjs
+      - name: Install Playwright browser test dependency
+        run: |
+          npm install --no-save --no-package-lock playwright
+          npx playwright install --with-deps chromium
+      - name: Start static app server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/orshap-http.log 2>&1 &
+          echo $! > /tmp/orshap-http.pid
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4173/ > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/orshap-http.log
+          exit 1
+      - name: Run desktop and mobile browser smoke tests
+        run: node scripts/visual-smoke.cjs
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orshap-visual-smoke-screenshots
+          path: artifacts/visual-smoke/
+          if-no-files-found: warn

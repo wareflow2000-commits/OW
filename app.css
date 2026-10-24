@@ -3476,9 +3476,7 @@ html[dir="ltr"] .v13-txn-editor,html[dir="ltr"] .v13-txn-preview {
 [data-return-quantity-wrap][hidden] {
   display:none!important;
 }
-.trf-return-notice .badge {
-  white-space:nowrap;
-}
+
 @media(max-width:760px) {
   .v13-txn-lines-table table {
     min-width:700px;
@@ -3528,10 +3526,7 @@ button,input,select,textarea {
   min-width:0;
   box-sizing:border-box;
 }
-button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible {
-  outline:2px solid color-mix(in srgb,var(--primary) 65%,white);
-  outline-offset:2px;
-}
+
 .v13-sidebar .brand,.sidebar .brand {
   padding:4px 6px 16px;
   gap:9px;
@@ -3688,12 +3683,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .grid {
   gap:12px;
 }
-.grid-4 {
-  grid-template-columns:repeat(4,minmax(0,1fr));
-}
-.grid-3 {
-  grid-template-columns:repeat(3,minmax(0,1fr));
-}
+
+
 .card {
   border-radius:13px;
   box-shadow:var(--shadow);
@@ -3898,9 +3889,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   }
 }
 @media(max-width:800px) {
-  .v13-sidebar.collapsed .v13-brand-copy,.v13-sidebar.collapsed .nav-label,.v13-sidebar.collapsed .v13-nav-label,.v13-sidebar.collapsed .sidebar-footer .user-chip>div:not(.avatar),.v13-sidebar.collapsed .logout {
-    display:initial;
-  }
+  
   .v13-sidebar .nav-btn {
     min-height:43px;
     padding:10px 11px;
@@ -3942,9 +3931,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .v13-head-search input::placeholder {
     font-size:10px;
   }
-  .v13-head-search kbd {
-    display:none;
-  }
+  
   .v13-head-right {
     order:2;
     display:flex;
@@ -5463,14 +5450,8 @@ button, input, select, textarea {
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
 }
-.table-wrap .table {
-  margin: 0;
-}
-.table-wrap .table thead th, .table-wrap .table th {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-}
+
+
 .v13-txn-lines-table {
   max-width: 100%;
   max-height: min(62dvh, 620px);
@@ -5478,11 +5459,7 @@ button, input, select, textarea {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
-.v13-txn-lines-table table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-}
+
 @media (min-width: 801px) {
   .v13-sidebar .v13-collapse {
     width: 25px;
@@ -5502,6 +5479,11 @@ button, input, select, textarea {
     display: block;
   }
 }
+/* Desktop must never render the mobile-only bottom navigation. */
+.v13-bottom-nav {
+  display: none;
+}
+
 /* Mobile: fixed header/footer; the document content remains the only page scroller. */
 @media (max-width: 800px) {
   html, body {
