@@ -1891,7 +1891,7 @@ render();
   const codeOf=(x)=>String(x?.code||x?.department_code||x?.item_code||'');
   const nameOf=(x)=>String(state.lang==='ar'?(x?.name_ar||x?.name):(x?.name_en||x?.name)||codeOf(x));
   const opts=(rows,selected,label,placeholder)=>'<option value="">— '+esc(placeholder)+' —</option>'+rows.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===selected?'selected':'')+'>'+esc(label(x))+'</option>').join('');
-  function ownerAllowed(){const role=String(state.session?.role||state.session?.profile?.role||'').toUpperCase();return ['SUPER_ADMIN','ADMIN','MANAGER','WAREHOUSE_MANAGER'].includes(role)}
+  function ownerAllowed(){const role=String(state.session?.role||state.session?.profile?.role||'').toUpperCase();return ['SUPER_ADMIN','MANAGER'].includes(role)&&orshapCanPermission('action:transaction:adjustment:create')}
   function openingButton(){return '<button class="btn secondary" data-action="ob-open">＋ '+esc(txText('إدارة الأرصدة الافتتاحية','Opening balances'))+'</button>'}
   function buildModal(){
     const warehouses=activeRows('warehouses').filter(w=>c10AccessibleWarehouse(w.id)),items=activeRows('items'),areas=activeRows('storage_areas'),shelves=activeRows('shelves'),owners=activeRows('administrative_departments');
