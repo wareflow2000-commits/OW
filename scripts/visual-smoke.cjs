@@ -164,7 +164,7 @@ const { chromium } = require('playwright');
       shelf.dispatchEvent(new Event('change', { bubbles: true }));
       return alternate.value;
     });
-    await page.waitForFunction(id => document.querySelector('#v12-tx-form [name="draft_shelf_id"]')?.value === id, {}, manualShelfId);
+    await page.waitForFunction(id => document.querySelector('#v12-tx-form [name="draft_shelf_id"]')?.value === id, manualShelfId, { timeout: 5000 });
     assert.notEqual(manualShelfId, suggestedShelfId, 'The user must be able to override the suggested shelf manually.');
 
     // Verify owner preservation/invalidation using only browser-local seed records.
