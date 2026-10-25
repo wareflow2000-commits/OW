@@ -1717,6 +1717,14 @@ applyTheme(false);try{render()}catch(e){console.error(e)}
 
 
 
+// Keep both New Request entry points on the canonical handler before legacy delegated listeners.
+document.addEventListener('click',function(e){
+  const btn=e.target.closest('[data-action="v12-new-tx"]');
+  if(!btn)return;
+  e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+  handleAction('v12-new-tx');
+},true);
+
 // v13.9.26 regression guard: route Add Line through the canonical handler even if a legacy listener intercepts it.
 document.addEventListener('click',function(e){
   const btn=e.target.closest('[data-action="v12-tx-add-line"]');
