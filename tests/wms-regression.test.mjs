@@ -47,6 +47,16 @@ test('transaction form uses an explicit bridge to scoped v13 selector helpers', 
   assert.match(txScope, /function v12AllowedWarehouses\(\)/);
 });
  
+test('v13 field handlers call the v12 transaction modal through an explicit bridge', () => {
+  assert.ok(app.includes('window.orshapV12TxModal=txModal;'));
+  const designStart = app.indexOf('/* ORSHAP WMS V13 — design-system');
+  const start = app.indexOf('(function(){', designStart);
+  const end = app.indexOf('\\n})();', start);
+  const designScope = app.slice(start, end);
+  assert.doesNotMatch(designScope, /\\btxModal\\s*\\(/);
+  assert.match(designScope, /window\.orshapV12TxModal\?\.\(\)/);
+});
+
 test('New Request click events bypass legacy delegated handlers', () => {
   assert.ok(app.includes("const btn=e.target.closest('[data-action=\"v12-new-tx\"]')"));
   assert.ok(app.includes("handleAction('v12-new-tx');"));
