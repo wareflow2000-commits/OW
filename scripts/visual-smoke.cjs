@@ -200,6 +200,65 @@ const { chromium } = require('playwright');
     assert.equal(await page.locator('#v12-tx-form [name="draft_administrative_department_id"]').inputValue(), '', 'Changing to an item with different valid owners must clear the stale owner.');
     await page.screenshot({ path: path.join(outDir, 'desktop-owner-dropdown-state.png'), fullPage: true });
 
+    // Verify review-before-save and failed-save retention. All transaction writes are intercepted.
+    let createTransactionAttempts = 0;
+    await page.route('**/rpc/create_transaction_with_lines*', route => {
+      createTransactionAttempts++;
+      return route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Blocked by visual smoke test; no database write is allowed.' })
+      });
+    });
+    const reviewSeed = await page.evaluate(() => {
+      // Deterministic UUID-shaped records exist only in this browser's in-memory V5_DB.
+      const warehouseId = '00000000-0000-4000-8000-00000000a001';
+      const areaId = '00000000-0000-4000-8000-00000000a002';
+      const shelfId = '00000000-0000-4000-8000-00000000a003';
+      const itemId = '00000000-0000-4000-8000-00000000a004';
+      const ownerId = '00000000-0000-4000-8000-00000000a005';
+      V5_DB.warehouses = V5_DB.warehouses.filter(w => w.id !== warehouseId);
+      V5_DB.warehouses.push({ id: warehouseId, code: 'SMOKE-REVIEW-WH', name: 'Review Smoke Warehouse', name_ar: 'مستودع اختبار المراجعة', is_active: true, status: 'ACTIVE' });
+      V5_DB.storage_areas = V5_DB.storage_areas.filter(a => a.id !== areaId);
+      V5_DB.storage_areas.push({ id: areaId, warehouse_id: warehouseId, code: 'SMOKE-REVIEW-AREA', name: 'Review Smoke Area', name_ar: 'منطقة اختبار المراجعة', is_active: true, status: 'ACTIVE' });
+      V5_DB.administrative_departments = (V5_DB.administrative_departments || []).filter(d => d.id !== ownerId);
+      V5_DB.administrative_departments.push({ id: ownerId, code: 'SMOKE-REVIEW-OWNER', name: 'Review Smoke Owner', name_ar: 'إدارة اختبار المراجعة', is_active: true, status: 'ACTIVE' });
+      V5_DB.shelves = V5_DB.shelves.filter(sh => sh.id !== shelfId);
+      V5_DB.shelves.push({ id: shelfId, warehouse_id: warehouseId, storage_area_id: areaId, code: 'SMOKE-REVIEW-SHELF', name: 'Review Smoke Shelf', is_active: true, status: 'ACTIVE', default_administrative_department_id: ownerId });
+      V5_DB.items = V5_DB.items.filter(item => item.id !== itemId);
+      V5_DB.items.push({ id: itemId, code: 'SMOKE-REVIEW-ITEM', item_number: 'SMOKE-REVIEW-001', name_en: 'Review Smoke Item', name_ar: 'صنف اختبار المراجعة', status: 'ACTIVE', is_active: true, base_unit: 'PCS' });
+      state.session = { id: warehouseId, role: 'SUPER_ADMIN', profile: { id: warehouseId, role: 'SUPER_ADMIN', status: 'ACTIVE', assigned_warehouse_ids: [], custom_permissions: ['*'] } };
+      state.v12TxMeta = { transaction_type: 'GRN', reference_no: 'SMOKE-REF-REVIEW-001', supplier: 'Smoke Supplier', receiver_name: 'Smoke Receiver', recipient_department_id: '', external_reference: '', adjustment_reason: '', notes: 'Browser smoke review only' };
+      state.v12TxWarehouseId = warehouseId;
+      state.v12TxWarehouseManual = true;
+      state.v12TxDraftLine = { item_id: '', shelf_id: '', quantity: 1, batch_no: '', expiry_date: '', administrative_department_id: '' };
+      state.v12TxLines = [{ item_id: itemId, shelf_id: shelfId, quantity: 1, batch_no: 'SMOKE-REVIEW-BATCH', expiry_date: null, administrative_department_id: ownerId }];
+      window.orshapV12TxModal?.();
+      return { warehouseId, shelfId, itemId, ownerId };
+    });
+    await page.locator('#v12-tx-form').waitFor({ state: 'visible' });
+    await page.locator('#v12-tx-form [name="supplier"]').evaluate(el => el.dispatchEvent(new Event('input', { bubbles: true })));
+    const reviewValidation = await page.evaluate(() => {
+      const form = document.getElementById('v12-tx-form');
+      const calc = window.orshapV12?.calculateDraft?.(Object.fromEntries(new FormData(form).entries()));
+      return { valid: !!calc?.valid, errors: calc?.errors || [], reference: form?.querySelector('[name="reference_no"]')?.value || '' };
+    });
+    assert.ok(reviewValidation.valid, 'Seeded GRN must pass client validation before review. Details: ' + JSON.stringify(reviewValidation));
+    await page.locator('#modal-root [data-action="v12-tx-save"]').click();
+    await page.locator('.v13-tx-review-backdrop').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(createTransactionAttempts, 0, 'Opening the review overlay must not write the transaction.');
+    await page.screenshot({ path: path.join(outDir, 'desktop-transaction-review-ar.png'), fullPage: true });
+    const blockedCreateResponse = page.waitForResponse(response => response.url().includes('/rpc/create_transaction_with_lines') && response.status() === 403, { timeout: 5000 });
+    await page.locator('[data-review-confirm]').click();
+    await blockedCreateResponse;
+    assert.ok(createTransactionAttempts >= 1, 'Confirming review must attempt the transaction RPC.');
+    assert.equal(await page.locator('#v12-tx-form').count(), 1, 'Failed database save must keep the transaction form open for correction/retry.');
+    assert.equal(await page.locator('.v13-tx-review-backdrop').count(), 0, 'Review overlay should close after confirm, while the editable form remains.');
+    assert.equal(await page.locator('#v12-tx-form [name="reference_no"]').inputValue(), 'SMOKE-REF-REVIEW-001', 'Failed save must not clear or fabricate the reference.');
+    await page.screenshot({ path: path.join(outDir, 'desktop-transaction-save-failure-ar.png'), fullPage: true });
+    await page.evaluate(() => { state.modal = null; render(); });
+    await page.unroute('**/rpc/create_transaction_with_lines*');
+
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-dashboard.png'), fullPage: true });
     await page.locator('#modal-root [data-action="close-modal"]').last().click();
 
