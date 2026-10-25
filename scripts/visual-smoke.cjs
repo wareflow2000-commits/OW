@@ -99,7 +99,7 @@ const { chromium } = require('playwright');
       item.value = '';
       item.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    await page.waitForSelector('#v12-tx-form [name="draft_item_id"]', { state: 'visible' });
+    await page.locator('#v12-tx-form').waitFor({ state: 'visible' });
     await page.evaluate(() => {
       const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
       if (!item || item.options.length < 2) throw new Error('Seeded item option is unavailable after rerender.');
