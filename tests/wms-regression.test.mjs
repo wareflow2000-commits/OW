@@ -511,6 +511,10 @@ test('warehouse scope migration hardens RLS reads and SECURITY DEFINER write pat
   assert.match(migration, /DROP POLICY IF EXISTS stock_authenticated_read/);
   assert.match(migration, /current_user_can_create_warehouse/);
   assert.match(migration, /WITH CHECK \(public\.current_user_has_permission\('action:facility:manage'\) AND public\.current_user_can_access_warehouse\(warehouse_id\)\)/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.list_stocktake_lines_secure/);
+  assert.match(migration, /WHERE public\.current_user_can_access_warehouse\(s\.warehouse_id\)/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.get_stock_summary_by_storage_area/);
+  assert.match(migration, /Report warehouse is outside the current user assigned scope/);
 });
 
 
