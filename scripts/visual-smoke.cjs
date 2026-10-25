@@ -198,12 +198,12 @@ const { chromium } = require('playwright');
     for (const [query, expected] of [
       ['OWNER-ITEM-A', 'OWNER-ITEM-A'],
       ['OWNER-NUM-A', 'OWNER-NUM-A'],
-      ['Owner Smoke Item A', 'Owner Smoke Item A']
+      ['صنف اختبار أ', 'صنف اختبار أ']
     ]) {
       await itemSearch.fill(query);
       const visibleOptions = await page.locator('.v13-select-panel:visible [role="option"]:visible').allTextContents();
       assert.ok(visibleOptions.some(text => text.includes(expected)), `Item search must match ${query}.`);
-      assert.ok(!visibleOptions.some(text => /OWNER-ITEM-B|OWNER-NUM-B|Owner Smoke Item B/.test(text)), `Item search ${query} must exclude the nonmatching item.`);
+      assert.ok(!visibleOptions.some(text => /OWNER-ITEM-B|OWNER-NUM-B|صنف اختبار ب/.test(text)), `Item search ${query} must exclude the nonmatching item.`);
     }
     await itemSearch.fill('');
     await itemSelectBox.locator('.v13-select-trigger').click();
