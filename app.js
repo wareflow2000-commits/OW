@@ -798,7 +798,7 @@ try{render()}catch(e){console.error('V10 final render failed',e)}
   function outboxEnqueue(payload){const rows=outboxRead();if(!rows.some(x=>x.operation_id===payload.operation_id))rows.push({...payload,status:'PENDING',attempts:0,created_at:new Date().toISOString(),last_error:null});outboxWrite(rows);return rows}
   function outboxOverlay(){const rows=outboxRead().filter(x=>x.status!=='SYNCED');for(const op of rows){if(op.kind!=='transaction_bundle')continue;const tx=op.payload.transaction,lines=op.payload.lines;if(!V5_DB.transactions.some(x=>x.id===tx.id)){V5_DB.transactions.push({...tx,status:'PENDING_SYNC',total_qty:lines.reduce((n,l)=>n+Number(l.quantity||0),0),_outbox:true});}for(const l of lines)if(!V5_DB.transaction_lines.some(x=>x.id===l.id))V5_DB.transaction_lines.push({...l,transaction_id:tx.id,_outbox:true});}}
   function repairOutboxUuidIds(op){const txRec=op?.payload?.transaction,lines=op?.payload?.lines;if(!txRec||!Array.isArray(lines)||!lines.length)throw new Error('Offline transaction payload is incomplete');const previousId=txRec.id;if(!isUuid(txRec.id))txRec.id=uid();for(const line of lines)if(!isUuid(line.id))line.id=uid();if(previousId!==txRec.id){V5_DB.transactions=V5_DB.transactions.filter(x=>!(x._outbox&&x.id===previousId));V5_DB.transaction_lines=V5_DB.transaction_lines.filter(x=>!(x._outbox&&x.transaction_id===previousId));}op.operation_id=txRec.id;if(!isUuid(txRec.warehouse_id)||!isUuid(txRec.created_by)||lines.some(line=>!isUuid(line.id)||!isUuid(line.item_id)||!isUuid(line.shelf_id)))throw new Error('Offline transaction contains an invalid warehouse, user, item or shelf UUID');}
-  async function flushOutbox(){if(!navigator.onLine||!state.session?.id||state.offlineSession||!window.orshapSupabase)return;let rows=outboxRead(),changed=false;for(let i=0;i<rows.length;i++){const op=rows[i];if(op.status==='SYNCED'||op.status==='CONFLICT'||op.status==='ERROR')continue;if(op.kind!=='transaction_bundle')continue;try{repairOutboxUuidIds(op);const result=await rpc('create_transaction_with_lines',{p_transaction_id:op.payload.transaction.id,p_transaction:op.payload.transaction,p_lines:op.payload.lines});if(result.error)throw result.error;op.status='SYNCED';op.last_error=null;op.synced_at=new Date().toISOString();changed=true;}catch(e){op.attempts=(op.attempts||0)+1;op.last_error=String(e?.message||e);op.status=/network|fetch|timeout|offline|load failed/i.test(op.last_error)?'PENDING':(/idempotency conflict|does not match/i.test(op.last_error)?'CONFLICT':'ERROR');changed=true;if(op.status==='PENDING')break;}}
+  async function flushOutbox(){if(!navigator.onLine||!state.session?.id||state.offlineSession||!window.orshapSupabase)return;let rows=outboxRead(),changed=false;for(let i=0;i<rows.length;i++){const op=rows[i];if(op.status==='SYNCED'||op.status==='CONFLICT'||op.status==='ERROR')continue;if(op.kind!=='transaction_bundle')continue;try{repairOutboxUuidIds(op);const tx=op.payload.transaction;if(/^LOCAL-/i.test(String(tx.reference_no||''))){const referenceResult=await rpc('next_transaction_reference',{});if(referenceResult.error)throw referenceResult.error;const officialReference=typeof referenceResult.data==='string'?referenceResult.data:String(referenceResult.data||'');if(!officialReference.trim())throw new Error('Database did not return an official transaction reference');tx.reference_no=officialReference;op.payload.transaction=tx;changed=true;outboxWrite(rows);}const result=await rpc('create_transaction_with_lines',{p_transaction_id:op.payload.transaction.id,p_transaction:op.payload.transaction,p_lines:op.payload.lines});if(result.error)throw result.error;op.status='SYNCED';op.last_error=null;op.synced_at=new Date().toISOString();changed=true;}catch(e){op.attempts=(op.attempts||0)+1;op.last_error=String(e?.message||e);op.status=/network|fetch|timeout|offline|load failed/i.test(op.last_error)?'PENDING':(/idempotency conflict|does not match/i.test(op.last_error)?'CONFLICT':'ERROR');changed=true;if(op.status==='PENDING')break;}}
     if(changed)outboxWrite(rows);if(rows.some(x=>x.status==='SYNCED')){const remain=rows.filter(x=>x.status!=='SYNCED');outboxWrite(remain);await v12PullCore();}}
   function say(ar,en,type='success'){toast(state.lang==='ar'?ar:en,type)}
   function escv(v){return esc(v??'')}
@@ -1024,11 +1024,30 @@ try{render()}catch(e){console.error('V10 final render failed',e)}
     if(!lines.length)errors.push('Add at least one transaction line');
     return {valid:errors.length===0,errors,lines,total,inbound};
   }
+  function v12SetLocalTransactionReference(requestId){
+    if(state.v12ReferenceRequestId!==requestId)return false;
+    const form=document.getElementById('v12-tx-form');
+    const input=form?.querySelector('[name="reference_no"]');
+    if(!input||input.value.trim())return false;
+    const reference='LOCAL-'+uid();
+    state.v12TxMeta={...(state.v12TxMeta||{}),reference_no:reference,reference_is_provisional:true};
+    input.value=reference;
+    input.dispatchEvent(new Event('input',{bubbles:true}));
+    const retry=document.querySelector('#modal-root [data-action="v12-tx-retry-reference"]');
+    if(retry)retry.hidden=true;
+    const save=form.querySelector('[data-action="v12-tx-save"]');
+    if(save)save.disabled=false;
+    return true;
+  }
   async function v12RequestTransactionReference(requestId){
     const form=document.getElementById('v12-tx-form');
     if(!form||state.v12ReferenceRequestId!==requestId)return;
     const input=form.querySelector('[name="reference_no"]');
     if(!input||input.value.trim())return;
+    if(!navigator.onLine){
+      if(v12SetLocalTransactionReference(requestId))say('تم إنشاء معرّف محلي مؤقت؛ سيُستبدل برقم السند الرسمي عند المزامنة','A temporary local ID was created; it will be replaced by the official voucher number during sync','warning');
+      return;
+    }
     state.v12ReferencePending=requestId;
     const retryButton=document.querySelector('#modal-root [data-action="v12-tx-retry-reference"]');
     if(retryButton)retryButton.disabled=true;
@@ -1049,7 +1068,10 @@ try{render()}catch(e){console.error('V10 final render failed',e)}
       if(retryNow)retryNow.hidden=true;
     }catch(e){
       if(state.v12ReferenceRequestId!==requestId||!document.getElementById('v12-tx-form'))return;
-      say((state.lang==='ar'?'تعذر توليد رقم سند آمن: ':'Could not generate a safe transaction reference: ')+(e?.message||String(e)),'Reference generation failed','error');
+      const message=String(e?.message||e);
+      if(/failed to fetch|network|timeout|offline|load failed|fetch failed/i.test(message)){
+        if(v12SetLocalTransactionReference(requestId))say('تعذر الاتصال بالخادم؛ أُنشئ معرّف محلي مؤقت وسيُستبدل بالرقم الرسمي عند المزامنة','The server is unreachable; a temporary local ID was created and will be replaced with the official number during sync','warning');
+      }else say((state.lang==='ar'?'تعذر توليد رقم سند آمن: ':'Could not generate a safe transaction reference: ')+message,'Reference generation failed','error');
     }finally{
       if(state.v12ReferencePending===requestId){
         state.v12ReferencePending=null;
