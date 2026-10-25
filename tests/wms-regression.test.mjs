@@ -162,7 +162,7 @@ test('legacy shelf form requires explicit storage-area choice when multiple area
 
 test('owning-department selection preserves valid choices and clears invalid ones', () => {
   const start = app.indexOf('function v13TxResolveOwnerSelection(');
-  const end = app.indexOf('\\nfunction v13TxShelfLabel', start);
+  const end = app.indexOf('function v13TxShelfLabel', start);
   assert.ok(start >= 0 && end > start, 'owner-selection resolver exists');
   const choiceMap = new Map([
     ['item|shelf-multiple|ISSUE|warehouse', [{ id: 'owner-a' }, { id: 'owner-b' }]],
