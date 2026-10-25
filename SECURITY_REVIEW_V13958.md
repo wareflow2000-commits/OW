@@ -42,3 +42,33 @@ Keep PR #4 as Draft until:
 2. GraphQL exposure is actually disabled or intentionally accepted with documented owner approval.
 3. Leaked-password protection is enabled and rechecked.
 4. The remaining SECURITY DEFINER warnings receive a documented accept/fix decision.
+
+## Continuation audit — 2026-10-25 (live state, supersedes stale counts above)
+
+### GitHub and browser verification
+- Main contains the merged fixes for settings boolean normalization, legacy shelf storage-area selection, transaction review/save-failure browser coverage, and migration-version reconciliation.
+- Latest relevant PR workflows passed regression tests, JavaScript syntax, offline shell/RPC/layout/CSS checks, and Playwright desktop/mobile smoke tests. The browser tests intercept transaction writes; they are not live database transaction tests.
+- The current main app source contains no `zone_id` or `section_id` references. The dead `reportsV12()` caller was removed.
+
+### Live database reconciliation (read-only, after the report-function migration)
+- `stock`: 1 row, total quantity 99.
+- `inventory_ledger`: 2 rows, sum of `delta` = 99.
+- `transaction_ledger`: 2 rows, sum of `quantity` = 99.
+- Composite-key comparison of stock versus inventory-ledger quantities: 0 mismatches.
+- Approved transactions lacking an approved transaction-ledger row: 0.
+- Shelf/storage-area and stock/transaction-line location consistency checks: 0 mismatches.
+- No rollback-smoke records exist. The attempted direct SQL transaction-test batch was blocked by the tool's safety controls before execution; no transaction test writes were performed in this continuation.
+
+### Legacy report API retirement
+- Applied migration version `20261025102208` removes `public.get_stock_summary_report` and `public.get_stock_summary_report_internal`, which exposed obsolete zone/section parameters.
+- Verified after application that only the canonical `get_stock_summary_by_storage_area` report RPC remains among those names and is executable by `authenticated`.
+- No stock, transaction, ledger, or historical records were modified by this migration.
+
+### Security blockers still open
+- Live ACL inspection still shows `graphql_public.graphql(text,text,jsonb,jsonb)` owned by managed role `supabase_admin`, with EXECUTE for PUBLIC, `anon`, and `authenticated`. The connected `postgres` role is not a superuser and cannot assume the managed owner role. A narrow revoke migration was attempted; it failed its ACL verification and rolled back, so it is **not** in applied migration history and no successful GraphQL fix is claimed. Disable `graphql_public` exposure using a supported project-level/API setting or apply the ACL change with authorized owner privileges, then verify the endpoint and REST/RPC access.
+- Security Advisor still reports leaked-password protection disabled. The connected tools do not expose an Auth settings mutation; an authorized administrator must enable it in Supabase Auth Email/Password Security settings and rerun the advisor.
+- 73 public `SECURITY DEFINER` functions remain; 34 are executable by `authenticated`, 0 by `anon`. All 73 have a pinned `search_path`. The 34 warnings are not 34 proven vulnerabilities; keep them open until per-function authorization, warehouse scope, idempotency, and concurrency tests are completed. Do not revoke them as a batch.
+- RLS is enabled on the 19 checked sensitive public tables; no `anon` table SELECT/INSERT grants were found in the checked set. Authenticated table grants remain guarded by RLS and database permission policies.
+
+### Release decision
+**Not approved for production yet.** The live balance/ledger snapshot reconciles, and browser smoke coverage passes, but full authenticated end-to-end tests for transfer/partial receipt/return/rejection/concurrency and the two open security settings above remain release blockers.
