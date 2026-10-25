@@ -481,3 +481,12 @@ test('transaction warehouse dropdown respects explicit administrator assignment'
   vm.runInContext(app.slice(helperStart,helperEnd)+'\n'+app.slice(dropdownStart,dropdownEnd),sandbox);
   assert.deepEqual(Array.from(sandbox.v13TxAllowedWarehouses(),w=>w.id),['wh-a']);
 });
+
+test('stocktake session list and active session are restricted to accessible warehouses', () => {
+  const start=app.indexOf('function c10Stocktake()');
+  const end=app.indexOf('\nfunction c10BuildStocktakeLocationLines',start);
+  assert.ok(start>=0&&end>start,'stocktake renderer exists');
+  const source=app.slice(start,end);
+  assert.match(source,/sessions=v5All\('stocktake_sessions'\)\.filter\(s=>c10AccessibleWarehouse\(s\.warehouse_id\)\)/);
+  assert.match(source,/active=activeCandidate&&c10AccessibleWarehouse\(activeCandidate\.warehouse_id\)\?activeCandidate:null/);
+});
