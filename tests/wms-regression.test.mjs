@@ -452,3 +452,19 @@ test('stale out-of-scope zero-balance stocktake lines stay blocked even after th
   assert.ok(expression.includes('Number(l.system_qty||0)===0'));
   assert.ok(expression.includes("st.item_id===l.item_id&&st.shelf_id===l.shelf_id"));
 });
+
+
+test('explicit warehouse assignments constrain administrator dropdown scope', () => {
+  const start=app.indexOf('function c10AccessibleWarehouse(');
+  const end=app.indexOf('\nfunction c10Audit(',start);
+  assert.ok(start>=0&&end>start,'warehouse access predicate exists');
+  const sandbox={state:{session:{id:'admin-1',role:'SUPER_ADMIN',profile:{role:'SUPER_ADMIN',assigned_warehouse_ids:['wh-a']}}}};
+  vm.createContext(sandbox);
+  vm.runInContext(app.slice(start,end),sandbox);
+  assert.equal(sandbox.c10AccessibleWarehouse('wh-a'),true,'explicitly assigned warehouse remains accessible');
+  assert.equal(sandbox.c10AccessibleWarehouse('wh-b'),false,'super admin assignment must not be bypassed');
+  sandbox.state.session.profile.assigned_warehouse_ids=[];
+  assert.equal(sandbox.c10AccessibleWarehouse('wh-b'),true,'unrestricted admin with no assignment list retains global access');
+  sandbox.state.session={id:'user-1',role:'USER',profile:{role:'USER',assigned_warehouse_ids:[]}};
+  assert.equal(sandbox.c10AccessibleWarehouse('wh-a'),false,'non-admin without assignments has no warehouse access');
+});
