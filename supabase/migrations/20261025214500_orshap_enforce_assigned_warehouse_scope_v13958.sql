@@ -192,6 +192,65 @@ CREATE POLICY stocktake_logs_permission_select ON public.stocktake_logs FOR SELE
 USING ((current_user_has_permission('page:stocktake:access') OR current_user_has_permission('table:stocktake:view'))
   AND EXISTS (SELECT 1 FROM public.stocktake_sessions s WHERE s.id=stocktake_logs.session_id
               AND public.current_user_can_access_warehouse(s.warehouse_id)));
+-- Scope archive, audit, and transfer reads too; these tables can expose transaction history.
+DROP POLICY IF EXISTS archive_movements_active_read ON public.archive_movements;
+CREATE POLICY archive_movements_active_read ON public.archive_movements FOR SELECT
+USING (public.current_user_is_active() AND public.current_user_can_access_warehouse(warehouse_id));
+
+DROP POLICY IF EXISTS archive_balances_active_read ON public.archive_balances;
+CREATE POLICY archive_balances_active_read ON public.archive_balances FOR SELECT
+USING (public.current_user_is_active() AND public.current_user_can_access_warehouse(warehouse_id));
+
+DROP POLICY IF EXISTS transaction_audit_select_policy ON public.transaction_audit;
+CREATE POLICY transaction_audit_select_policy ON public.transaction_audit FOR SELECT
+USING (
+  EXISTS (SELECT 1 FROM public.profiles p
+          WHERE p.id=(SELECT auth.uid()) AND p.status='ACTIVE'
+            AND (p.role IN ('SUPER_ADMIN','ADMIN','MANAGER')
+                 OR COALESCE(p.custom_permissions,ARRAY[]::text[]) @> ARRAY['VIEW_AUDIT']::text[]))
+  AND EXISTS (SELECT 1 FROM public.transactions t
+              WHERE t.id=transaction_audit.transaction_id
+                AND public.current_user_can_access_warehouse(t.warehouse_id))
+);
+
+DROP POLICY IF EXISTS audit_logs_select_policy ON public.audit_logs;
+CREATE POLICY audit_logs_select_policy ON public.audit_logs FOR SELECT
+USING (
+  EXISTS (SELECT 1 FROM public.profiles p
+          WHERE p.id=(SELECT auth.uid()) AND p.status='ACTIVE'
+            AND (p.role IN ('SUPER_ADMIN','ADMIN','MANAGER')
+                 OR COALESCE(p.custom_permissions,ARRAY[]::text[]) @> ARRAY['VIEW_AUDIT']::text[]))
+  AND (
+    (warehouse_id IS NOT NULL AND public.current_user_can_access_warehouse(warehouse_id))
+    OR (warehouse_id IS NULL AND entity='TRANSACTION'
+        AND EXISTS (SELECT 1 FROM public.transactions t
+                    WHERE t.id::text=audit_logs.entity_id
+                      AND public.current_user_can_access_warehouse(t.warehouse_id)))
+    OR (warehouse_id IS NULL AND entity IS DISTINCT FROM 'TRANSACTION'
+        AND COALESCE(details,'') !~* '"(warehouse_id|warehouseId|tx_id|transaction_id)"[[:space:]]*:')
+  )
+);
+
+DROP POLICY IF EXISTS stock_transfers_select_assigned ON public.stock_transfers;
+CREATE POLICY stock_transfers_select_assigned ON public.stock_transfers FOR SELECT
+USING (
+  (current_user_has_permission('action:stock_transfer:view')
+   OR current_user_has_permission('action:stock_transfer:receive')
+   OR current_user_has_permission('action:stock_transfer:create'))
+  AND (public.current_user_can_access_warehouse(source_warehouse_id)
+       OR public.current_user_can_access_warehouse(destination_warehouse_id))
+);
+
+DROP POLICY IF EXISTS stock_transfer_orders_select_assigned ON public.stock_transfer_orders;
+CREATE POLICY stock_transfer_orders_select_assigned ON public.stock_transfer_orders FOR SELECT
+USING (
+  (current_user_has_permission('action:stock_transfer:view')
+   OR current_user_has_permission('action:stock_transfer:receive')
+   OR current_user_has_permission('action:stock_transfer:create'))
+  AND (public.current_user_can_access_warehouse(source_warehouse_id)
+       OR public.current_user_can_access_warehouse(destination_warehouse_id))
+);
+
 CREATE OR REPLACE FUNCTION public.list_stocktake_lines_secure()
  RETURNS TABLE(id uuid, session_id uuid, item_id uuid, shelf_id uuid, system_qty numeric, counted_qty numeric, variance numeric, is_settled boolean, settled_at timestamp with time zone, created_at timestamp with time zone, batch_no text, expiry_date date)
  LANGUAGE plpgsql
