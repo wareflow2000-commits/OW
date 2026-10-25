@@ -387,8 +387,8 @@ function c10AccessibleWarehouse(id){
   const assigned=Array.isArray(p.assigned_warehouse_ids)?p.assigned_warehouse_ids:[];
   // An explicit warehouse assignment constrains every role, including SUPER_ADMIN/ADMIN.
   // Unassigned administrators retain global access; an unassigned non-admin has no warehouse access.
-  if(!id)return ['SUPER_ADMIN','ADMIN'].includes(role)&&assigned.length===0;
-  if(['SUPER_ADMIN','ADMIN'].includes(role)&&assigned.length===0)return true;
+  if(!id)return ['SUPER_ADMIN','ADMIN','MANAGER'].includes(role)&&assigned.length===0;
+  if(['SUPER_ADMIN','ADMIN','MANAGER'].includes(role)&&assigned.length===0)return true;
   return assigned.includes(id);
 }
 function v13OfflineTransactionAllowed(type){return ['GRN','ISSUE'].includes(String(type||'').toUpperCase())}
