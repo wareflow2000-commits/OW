@@ -401,3 +401,33 @@ test('stocktake database migration excludes unrelated catalogue items from zero-
   assert.ok(!migration.includes('UNION ALL'));
   assert.ok(!migration.includes('FROM public.items i JOIN public.shelves'));
 });
+
+
+test('smart shelf suggestion picks a valid default while preserving eligible manual selection', () => {
+  const start=app.indexOf('function v13TxShelfChoices(');
+  const end=app.indexOf('function v13TxSuggestedWarehouse(',start);
+  assert.ok(start>=0&&end>start,'shelf choice and suggestion helpers exist');
+  const sandbox={
+    v5All:(name)=>name==='shelves'?[{id:'shelf-a',warehouse_id:'wh-a'},{id:'shelf-b',warehouse_id:'wh-a'}]:name==='administrative_departments'?[]:[],
+    v13TxShelfIsValid:()=>true,
+    v13TxStockRows:()=>[{item_id:'item-1',shelf_id:'shelf-a',quantity:2},{item_id:'item-1',shelf_id:'shelf-b',quantity:8}],
+    v5Find:(table,id)=>table==='shelves'?({'shelf-a':{id:'shelf-a',warehouse_id:'wh-a'},'shelf-b':{id:'shelf-b',warehouse_id:'wh-a'}}[id]):null
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(app.slice(start,end),sandbox);
+  const choices=sandbox.v13TxShelfChoices('item-1','ISSUE','wh-a');
+  assert.equal(choices.length,2);
+  assert.equal(sandbox.v13TxSuggestedShelf('item-1','ISSUE','wh-a',choices),'shelf-b','issue should suggest the shelf with the most available stock');
+});
+
+test('stocktake blocks review submission when old unbacked zero-balance lines remain', () => {
+  assert.ok(app.includes('const staleZeroLines=lines.filter('));
+  assert.ok(app.includes('!staleZeroLines.length'), 'review submission is blocked until a clean session is used');
+  assert.ok(app.includes('no matching stock row at the selected shelf') || app.includes('لا يقابلها رصيد صنف في الرف المحدد'));
+});
+
+test('new request modal keeps long item tables inside a scrollable viewport', () => {
+  assert.ok(css.includes('.modal {\n  display:flex;\n  flex-direction:column;'));
+  assert.ok(css.includes('  .modal,.modal-wide {\n    display:flex;\n    flex-direction:column;'));
+  assert.ok(css.includes('overflow-y:auto;'));
+});
