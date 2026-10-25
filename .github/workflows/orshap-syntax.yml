@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - audit/v13.9.58-dropdown-unification
-      - fix/v13958-no-fabricated-reference
   pull_request:
     branches:
       - main
