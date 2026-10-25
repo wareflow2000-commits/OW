@@ -330,3 +330,61 @@ test('provisional references never go directly to transaction creation', () => {
   assert.match(source, /if\(!navigator\.onLine\|\|\/\^LOCAL-\/i\.test\(tx\.reference_no\)\)/);
   assert.ok(source.indexOf('outboxEnqueue(payload)') < source.indexOf("rpc('create_transaction_with_lines'"), 'provisional references are queued before any direct create RPC');
 });
+
+test('stocktake scope never invents zero-balance catalogue items at every shelf', () => {
+  const start = app.indexOf('function c10BuildStocktakeLocationLines(');
+  const end = app.indexOf('\\nfunction c10Settle(', start);
+  assert.ok(start >= 0 && end > start, 'stocktake location builder exists');
+  const sandbox = {
+    v5All: name => ({
+      items: [{id:'item-stocked',code:'A'}, {id:'item-other',code:'B'}],
+      shelves: [
+        {id:'shelf-a',warehouse_id:'wh-a',storage_area_id:'area-a',is_active:true},
+        {id:'shelf-b',warehouse_id:'wh-b',storage_area_id:'area-b',is_active:true}
+      ],
+      storage_areas: [
+        {id:'area-a',warehouse_id:'wh-a',is_active:true},
+        {id:'area-b',warehouse_id:'wh-b',is_active:true}
+      ],
+      stock: [{id:'st-1',item_id:'item-stocked',shelf_id:'shelf-a',quantity:4,batch_no:'B1'}]
+    })[name] || [],
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(app.slice(start,end),sandbox);
+  const built=sandbox.c10BuildStocktakeLocationLines('wh-a',null);
+  assert.equal(built.lines.length,1);
+  assert.equal(built.lines[0].item_id,'item-stocked');
+  assert.equal(built.lines[0].system_qty,4);
+  assert.equal(sandbox.c10BuildStocktakeLocationLines('wh-a','area-b').lines.length,0,'cross-warehouse area filter must not widen or mis-scope the count');
+});
+
+test('issue smart warehouse suggestion moves away from an authorized warehouse with no stock', () => {
+  const start=app.indexOf('function v13TxSuggestedWarehouse(');
+  const end=app.indexOf('\\nfunction v13TxOwnerChoices(',start);
+  assert.ok(start>=0&&end>start,'smart warehouse resolver exists');
+  const stockRows=[
+    {item_id:'item-1',shelf_id:'shelf-b',quantity:7},
+    {item_id:'item-1',shelf_id:'shelf-not-allowed',quantity:99}
+  ];
+  const sandbox={
+    v13TxAllowedWarehouses:()=>[{id:'wh-a'},{id:'wh-b'}],
+    v13TxStockRows:(itemId,warehouseId='')=>stockRows.filter(r=>r.item_id===itemId&&(!warehouseId||({ 'shelf-b':'wh-b','shelf-not-allowed':'wh-x'}[r.shelf_id]===warehouseId))),
+    v5Find:(table,id)=>table==='shelves'?({ 'shelf-b':{id:'shelf-b',warehouse_id:'wh-b'},'shelf-not-allowed':{id:'shelf-not-allowed',warehouse_id:'wh-x'} }[id]):null
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(app.slice(start,end),sandbox);
+  assert.equal(sandbox.v13TxSuggestedWarehouse('item-1','ISSUE','wh-a'),'wh-b');
+  assert.equal(sandbox.v13TxSuggestedWarehouse('item-1','GRN','wh-a'),'wh-a','inbound vouchers may retain a valid manual warehouse selection');
+});
+
+test('stocktake counts queue securely while offline and replay through save_stocktake_count RPC', () => {
+  assert.match(app,/function stocktakeCountQueueKey\\(\\)/);
+  assert.match(app,/function queueStocktakeCount\\(line,n\\)/);
+  assert.match(app,/async function flushStocktakeCountQueue\\(\\)[\\s\\S]{0,1400}rpc\\('save_stocktake_count'/);
+  const start=app.indexOf('async function saveStocktakeCount(');
+  const end=app.indexOf('\\n  window.orshapV12=',start);
+  const source=app.slice(start,end);
+  assert.match(source,/if\\(!navigator\\.onLine\\)[\\s\\S]{0,700}queueStocktakeCount\\(line,n\\)/);
+  assert.match(source,/isUuid\\(line\\.id\\)&&isUuid\\(session\\.id\\)/);
+  assert.match(app,/Promise\\.all\\(\\[flushOutbox\\(\\),flushStocktakeCountQueue\\(\\)\\]\\)/);
+});
