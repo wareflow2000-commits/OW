@@ -260,7 +260,8 @@ BEGIN
   JOIN public.stocktake_sessions s ON s.id=l.session_id
   WHERE public.current_user_can_access_warehouse(s.warehouse_id);
 END;
-$function$;
+$function$
+;
 
 CREATE OR REPLACE FUNCTION public.get_stock_summary_by_storage_area(p_start_date timestamp with time zone, p_end_date timestamp with time zone, p_warehouse_id uuid DEFAULT NULL::uuid, p_storage_area_id uuid DEFAULT NULL::uuid, p_category_id uuid DEFAULT NULL::uuid)
  RETURNS TABLE(item_code text, item_name_en text, item_name_ar text, category_name text, opening_stock numeric, total_in numeric, total_out numeric, current_stock numeric)
@@ -327,7 +328,7 @@ BEGIN
             COALESCE(il.metadata,'{}'::jsonb) ? 'transfer_id'
             OR COALESCE(il.metadata->>'reference_type','') LIKE 'STOCK_TRANSFER%'
             OR COALESCE(il.notes,'') ILIKE '%Transfer=%'
-            OR COALESCE(il.source_ref,'') ~* '^TRF[-_].*-(OUT|IN|RET-RCV)
+            OR COALESCE(il.source_ref,'') ~* '^TRF[-_].*-(OUT|IN|RET-RCV)$'
           )
         THEN il.delta ELSE 0 END) AS qty_in,
       SUM(CASE
@@ -338,7 +339,7 @@ BEGIN
             COALESCE(il.metadata,'{}'::jsonb) ? 'transfer_id'
             OR COALESCE(il.metadata->>'reference_type','') LIKE 'STOCK_TRANSFER%'
             OR COALESCE(il.notes,'') ILIKE '%Transfer=%'
-            OR COALESCE(il.source_ref,'') ~* '^TRF[-_].*-(OUT|IN|RET-RCV)
+            OR COALESCE(il.source_ref,'') ~* '^TRF[-_].*-(OUT|IN|RET-RCV)$'
           )
         THEN ABS(il.delta) ELSE 0 END) AS qty_out
     FROM public.inventory_ledger il
@@ -366,6 +367,7 @@ BEGIN
     AND (ls.item_id IS NOT NULL OR csa.item_id IS NOT NULL)
   ORDER BY i.code;
 END;
-$function$;
+$function$
+;
 
 COMMIT;
