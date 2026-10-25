@@ -112,14 +112,15 @@ test('shelf facility modal refreshes storage areas when its warehouse changes', 
   assert.ok(app.includes('v13SetOptions(areaSel,areas,selected'));
 });
 
-test('offline New Request never fabricates a transaction reference', () => {
+test('offline New Request requests a safe reference and uses a clearly marked local fallback only on connectivity failure', () => {
   const start = app.indexOf("if(a==='v12-new-tx'){");
   const end = app.indexOf("if(a==='v12-tx-retry-reference')", start);
   assert.ok(start >= 0 && end > start, 'canonical New Request handler exists');
   const handler = app.slice(start, end);
-  assert.match(handler, /if\(!navigator\.onLine\)\{txModal\(\);say\(/);
+  assert.match(handler, /if\(!navigator\.onLine\)\{txModal\(\);v12SetLocalTransactionReference\(state\.v12ReferenceRequestId\);say\(/);
   assert.doesNotMatch(handler, /reference_no\s*=\s*['"]OFF-/);
   assert.match(handler, /v12RequestTransactionReference\(state\.v12ReferenceRequestId\)/);
+  assert.match(app, /function v12SetLocalTransactionReference\(requestId\)/);
 });
 
 test('system boolean settings are normalized to canonical TRUE/FALSE values', () => {
@@ -303,4 +304,29 @@ test('legacy offline sync RPCs are retired until they respect transaction approv
     const source = fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8');
     assert.doesNotMatch(source, /process_sync_batch(?:_v2)?\s*\(/, file + ' must not depend on the retired RPC');
   }
+});
+
+test('offline voucher reference falls back to a clearly provisional local ID', () => {
+  assert.match(app, /function v12SetLocalTransactionReference\(requestId\)/);
+  assert.match(app, /const reference='LOCAL-'\+uid\(\)/);
+  assert.match(app, /if\(!navigator\.onLine\)\{\s*if\(v12SetLocalTransactionReference\(requestId\)\)/);
+});
+
+test('outbox promotes a provisional voucher reference once and persists it before transaction creation', () => {
+  const start = app.indexOf('async function flushOutbox()');
+  const end = app.indexOf('\n  function say(', start);
+  assert.ok(start >= 0 && end > start, 'outbox flush function exists');
+  const source = app.slice(start, end);
+  assert.ok(source.includes("if(/^LOCAL-/i.test(String(tx.reference_no||'')))"), 'only provisional local references are promoted');
+  assert.match(source, /rpc\('next_transaction_reference',\{\}\)/);
+  assert.ok(source.indexOf('outboxWrite(rows)') < source.indexOf("rpc('create_transaction_with_lines'"), 'official reference is persisted before the create RPC');
+});
+
+test('provisional references never go directly to transaction creation', () => {
+  const start = app.indexOf('async function saveTx()');
+  const end = app.indexOf('\n  function ', start + 20);
+  assert.ok(start >= 0 && end > start, 'saveTx function exists');
+  const source = app.slice(start, end);
+  assert.match(source, /if\(!navigator\.onLine\|\|\/\^LOCAL-\/i\.test\(tx\.reference_no\)\)/);
+  assert.ok(source.indexOf('outboxEnqueue(payload)') < source.indexOf("rpc('create_transaction_with_lines'"), 'provisional references are queued before any direct create RPC');
 });
