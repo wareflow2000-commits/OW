@@ -234,7 +234,7 @@ test('application uses canonical storage-area reporting and retires legacy zone-
   assert.ok(app.includes("client.rpc('get_stock_summary_by_storage_area'"), 'active report page must use canonical storage-area RPC');
   assert.doesNotMatch(app, /get_stock_summary_report/);
   assert.doesNotMatch(app, /zone_id|section_id/);
-  const migrationPath = new URL('../supabase/migrations/20261025112500_orshap_remove_legacy_zone_section_report_rpcs_v13958.sql', import.meta.url);
+  const migrationPath = new URL('../supabase/migrations/20261025102208_orshap_remove_legacy_zone_section_report_rpcs_v13958.sql', import.meta.url);
   const migration = fs.readFileSync(migrationPath, 'utf8');
   assert.match(migration, /DROP FUNCTION IF EXISTS public\.get_stock_summary_report\(timestamptz, timestamptz, uuid, uuid, uuid\)/);
   assert.match(migration, /DROP FUNCTION IF EXISTS public\.get_stock_summary_report_internal\(timestamptz, timestamptz, uuid, uuid, uuid\)/);
