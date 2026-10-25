@@ -201,10 +201,10 @@ test('stocktake settlement preserves owner dimension and rejects ambiguous owner
   const end = migration.indexOf('COMMENT ON FUNCTION public.process_stocktake_settlement_direct_internal_with_direction', start);
   assert.ok(start >= 0 && end > start, 'owner-aware stocktake settlement migration exists');
   const source = migration.slice(start, end);
-  assert.match(source, /LOCK TABLE public\\.stock IN SHARE ROW EXCLUSIVE MODE/);
-  assert.match(source, /v_owner_count > 1[\\s\\S]{0,220}spans multiple owning departments/);
+  assert.match(source, /LOCK TABLE public\.stock IN SHARE ROW EXCLUSIVE MODE/);
+  assert.match(source, /v_owner_count > 1[\s\S]{0,220}spans multiple owning departments/);
   assert.match(source, /administrative_department_id,v_new_qty/);
-  assert.match(source, /ON CONFLICT \\(item_id,shelf_id,batch_no,administrative_department_id\\)/);
-  assert.doesNotMatch(source, /ON CONFLICT \\(item_id,shelf_id,batch_no\\)/);
+  assert.match(source, /ON CONFLICT \(item_id,shelf_id,batch_no,administrative_department_id\)/);
+  assert.doesNotMatch(source, /ON CONFLICT \(item_id,shelf_id,batch_no\)/);
   assert.match(source, /'administrative_department_id',v_owner/);
 });
