@@ -543,3 +543,16 @@ test('cached warehouse-bound records are hidden outside the current assignment',
   assert.deepEqual(Array.from(sandbox.v5All('stocktake_lines'),x=>x.id),['a-count']);
   assert.deepEqual(Array.from(sandbox.v5All('inventory_ledger'),x=>x.id),['a-ledger']);
 });
+
+
+test('profile refresh purges assigned-admin cache scope without restricting the global item catalogue', () => {
+  const start=app.indexOf('const current=V12.remoteState.profiles.find');
+  const end=app.indexOf('    outboxOverlay();',start);
+  assert.ok(start>=0&&end>start,'profile refresh and cache purge block exists');
+  const source=app.slice(start,end);
+  assert.match(source,/if\(assigned\.length\)/);
+  assert.match(source,/V5_DB\.transactions=V5_DB\.transactions\.filter/);
+  assert.match(source,/V5_DB\.stocktake_sessions=V5_DB\.stocktake_sessions\.filter/);
+  assert.doesNotMatch(source,/V5_DB\.items\s*=\s*V5_DB\.items\.filter/,'item master must remain warehouse-independent');
+  assert.match(source,/else if\(!admin\)/,'unassigned non-admin cache is purged');
+});
