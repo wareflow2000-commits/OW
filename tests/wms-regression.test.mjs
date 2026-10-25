@@ -37,14 +37,18 @@ test('dashboard and transactions route to a non-blocking New Request modal', () 
   assert.match(app, /async function v12RequestTransactionReference\(requestId\)[\s\S]{0,1400}Promise\.race/);
 });
 
-test('transaction form uses an explicit bridge to scoped v13 selector helpers', () => {
+test('transaction form uses explicit bridges instead of cross-IIFE helpers', () => {
   const txIndex = app.indexOf('function txModal()');
   const start = app.lastIndexOf('(function(){', txIndex);
   const end = app.indexOf('\n})();', start);
   const txScope = app.slice(start, end);
   assert.match(app, /window\.orshapTxChoices=Object\.freeze/);
-  assert.doesNotMatch(txScope, /\\bv13Tx(?:AllowedWarehouses|ShelfIsValid|StockRows|ItemChoices|ShelfChoices|ShelfLabel|OwnerChoices|BatchChoices)\\b/);
+  assert.match(app, /window\.orshapV12TxModal=txModal;/);
+  assert.doesNotMatch(txScope, /\bv13Tx(?:AllowedWarehouses|ShelfIsValid|StockRows|ItemChoices|ShelfChoices|ShelfLabel|OwnerChoices|BatchChoices)\b/);
+  assert.doesNotMatch(txScope, /\btx\s*\(/);
+  assert.doesNotMatch(txScope, /\bwhName\s*\(/);
   assert.match(txScope, /function v12AllowedWarehouses\(\)/);
+  assert.match(txScope, /function v12Translate\(ar,en\)/);
 });
  
 test('v13 field handlers call the v12 transaction modal through an explicit bridge', () => {
