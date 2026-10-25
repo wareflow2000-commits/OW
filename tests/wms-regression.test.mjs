@@ -37,6 +37,16 @@ test('dashboard and transactions route to a non-blocking New Request modal', () 
   assert.match(app, /async function v12RequestTransactionReference\(requestId\)[\s\S]{0,1400}Promise\.race/);
 });
 
+test('transaction form uses an explicit bridge to scoped v13 selector helpers', () => {
+  const txIndex = app.indexOf('function txModal()');
+  const start = app.lastIndexOf('(function(){', txIndex);
+  const end = app.indexOf('\\n})();', start);
+  const txScope = app.slice(start, end);
+  assert.match(app, /window\.orshapTxChoices=Object\.freeze/);
+  assert.doesNotMatch(txScope, /\\bv13Tx(?:AllowedWarehouses|ShelfIsValid|StockRows|ItemChoices|ShelfChoices|ShelfLabel|OwnerChoices|BatchChoices)\\b/);
+  assert.match(txScope, /function v12AllowedWarehouses\(\)/);
+});
+ 
 test('New Request click events bypass legacy delegated handlers', () => {
   assert.ok(app.includes("const btn=e.target.closest('[data-action=\"v12-new-tx\"]')"));
   assert.ok(app.includes("handleAction('v12-new-tx');"));
