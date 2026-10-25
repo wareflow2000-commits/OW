@@ -115,6 +115,7 @@ const { chromium } = require('playwright');
     assert.ok(referenceRpcAttempts >= 2, 'Retry must issue a second reference-generation request.');
     assert.equal(await page.locator('#v12-tx-form').count(), 1, 'Reference-generation failure and retry must keep the New Request form open.');
     assert.equal(await page.locator('#v12-tx-form [name="reference_no"]').inputValue(), '', 'A failed reference request must not invent a reference number.');
+    await page.screenshot({ path: path.join(outDir, 'desktop-new-request-dashboard.png'), fullPage: true });
     // Change the item field to exercise the dependent shelf update and cross-IIFE bridge.
     await page.evaluate(() => {
       const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
@@ -291,7 +292,7 @@ const { chromium } = require('playwright');
     await page.evaluate(() => { state.modal = null; render(); });
     await page.unroute('**/rpc/create_transaction_with_lines*');
 
-    await page.screenshot({ path: path.join(outDir, 'desktop-new-request-dashboard.png'), fullPage: true });
+    await page.screenshot({ path: path.join(outDir, 'desktop-dashboard-after-review-failure.png'), fullPage: true });
 
     await page.evaluate(() => {
       state.page = 'transactions';
