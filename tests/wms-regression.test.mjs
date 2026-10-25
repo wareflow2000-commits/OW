@@ -508,3 +508,34 @@ test('warehouse scope migration hardens RLS reads and SECURITY DEFINER write pat
   assert.match(migration, /DROP POLICY IF EXISTS stocktake_sessions_permission_select/);
   assert.match(migration, /DROP POLICY IF EXISTS stock_authenticated_read/);
 });
+
+
+test('cached warehouse-bound records are hidden outside the current assignment', () => {
+  const helperStart=app.indexOf('function c10AccessibleWarehouse(');
+  const helperEnd=app.indexOf('function v13OfflineTransactionAllowed',helperStart);
+  const allStart=app.indexOf('function v5All(k){');
+  const allEnd=app.indexOf('\nfunction v5Find(',allStart);
+  assert.ok(helperStart>=0&&helperEnd>helperStart&&allStart>=0&&allEnd>allStart);
+  const sandbox={
+    state:{session:{id:'admin-1',role:'SUPER_ADMIN',profile:{role:'SUPER_ADMIN',assigned_warehouse_ids:['wh-a']}}},
+    V5_DB:{
+      warehouses:[{id:'wh-a'},{id:'wh-b'}],
+      storage_areas:[{id:'a-area',warehouse_id:'wh-a'},{id:'b-area',warehouse_id:'wh-b'}],
+      shelves:[{id:'a-shelf',warehouse_id:'wh-a'},{id:'b-shelf',warehouse_id:'wh-b'}],
+      stock:[{id:'a-stock',shelf_id:'a-shelf'},{id:'b-stock',shelf_id:'b-shelf'}],
+      transactions:[{id:'a-tx',warehouse_id:'wh-a'},{id:'b-tx',warehouse_id:'wh-b'}],
+      transaction_lines:[{id:'a-line',transaction_id:'a-tx'},{id:'b-line',transaction_id:'b-tx'}],
+      stocktake_sessions:[{id:'a-session',warehouse_id:'wh-a'},{id:'b-session',warehouse_id:'wh-b'}],
+      stocktake_lines:[{id:'a-count',session_id:'a-session'},{id:'b-count',session_id:'b-session'}],
+      stocktake_logs:[],inventory_ledger:[{id:'a-ledger',warehouse_id:'wh-a'},{id:'b-ledger',warehouse_id:'wh-b'}],
+      transaction_ledger:[{id:'a-tledger',warehouse_id:'wh-a'},{id:'b-tledger',warehouse_id:'wh-b'}]
+    }
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(app.slice(helperStart,helperEnd)+'\n'+app.slice(allStart,allEnd),sandbox);
+  assert.deepEqual(Array.from(sandbox.v5All('warehouses'),x=>x.id),['wh-a']);
+  assert.deepEqual(Array.from(sandbox.v5All('transactions'),x=>x.id),['a-tx']);
+  assert.deepEqual(Array.from(sandbox.v5All('transaction_lines'),x=>x.id),['a-line']);
+  assert.deepEqual(Array.from(sandbox.v5All('stocktake_lines'),x=>x.id),['a-count']);
+  assert.deepEqual(Array.from(sandbox.v5All('inventory_ledger'),x=>x.id),['a-ledger']);
+});
