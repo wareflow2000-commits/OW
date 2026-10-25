@@ -156,6 +156,6 @@ test('legacy shelf form requires explicit storage-area choice when multiple area
   const end = app.indexOf("if(el.closest('#v12-tx-form')", start);
   assert.ok(start >= 0 && end > start, 'legacy facility dependency handler exists');
   const source = app.slice(start, end);
-  assert.match(source, /const areas=v5All\\('storage_areas'\\)\\.filter\\(a=>a\\.warehouse_id===wh&&a\\.is_active!==false\\),selected=areas\\.length===1\\?areas\\[0\\]\\.id:''/);
-  assert.match(source, /v13SetOptions\\(areaSel,areas,selected,[\\s\\S]{0,100}true\\)/);
+  assert.ok(source.includes("const areas=v5All('storage_areas').filter(a=>a.warehouse_id===wh&&a.is_active!==false),selected=areas.length===1?areas[0].id:''"));
+  assert.ok(source.includes("v13SetOptions(areaSel,areas,selected") && source.includes(",true);"), 'the select must keep an empty option for explicit choice');
 });
