@@ -55,6 +55,9 @@ const { chromium } = require('playwright');
     });
     await page.locator('.page').waitFor({ state: 'visible' });
     assert.match(await page.locator('.page').innerText(), /حول النظام|About/i, 'About page must render without a ReferenceError.');
+    const aboutStatIcons = await page.locator('.page .stat-icon').allTextContents();
+    assert.equal(aboutStatIcons.length, 3, 'About page must render all three summary cards.');
+    assert.ok(aboutStatIcons.every(icon => icon.trim() && icon.trim() !== 'undefined'), 'About summary cards must not render undefined icons.');
     await page.screenshot({ path: path.join(outDir, 'desktop-about-ar.png'), fullPage: true });
 
     await page.evaluate(() => {
