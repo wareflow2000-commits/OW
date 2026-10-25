@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+const css = fs.readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 
 test('app.js parses as JavaScript', () => {
   assert.doesNotThrow(() => new vm.Script(app, { filename: 'app.js' }));
