@@ -256,3 +256,16 @@ test('transaction modal never fabricates a reference when metadata is absent', (
   assert.ok(app.includes("state.v12TxMeta=state.v12TxMeta||{reference_no:'',transaction_type:'GRN'};"));
   assert.doesNotMatch(app, /reference_no:\s*'REF-'\s*\+\s*Date\.now\(\)/);
 });
+
+test('stock movement reference is database-generated and retryable without fabricated fallback', () => {
+  const start = app.indexOf('async function v13RequestMovementReference(');
+  const end = app.indexOf('function v13StockMovementModal()', start);
+  assert.ok(start >= 0 && end > start, 'stock movement reference requester exists');
+  const source = app.slice(start, end);
+  assert.match(source, /rpc\\('next_transaction_reference',\\{\\}\\)/);
+  assert.match(source, /Reference request timed out/);
+  assert.match(source, /reference_error:true/);
+  assert.match(source, /v13-stock-movement-retry-reference/);
+  assert.match(app, /if\\(a==='v13-stock-movement'\\)\\{state\\.v13Movement=\\{movement_type:'TRANSFER',reference_no:'',quantity:1,batch_no:'',referenceRequestId:uid\\(\\),reference_error:false,reference_pending:false\\};v13StockMovementModal\\(\\);void v13RequestMovementReference/);
+  assert.doesNotMatch(app, /reference_no:'MOV-'\\+Date\\.now\\(\\)/);
+});
