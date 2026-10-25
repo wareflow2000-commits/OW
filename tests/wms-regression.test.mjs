@@ -40,7 +40,7 @@ test('dashboard and transactions route to a non-blocking New Request modal', () 
 test('transaction form uses an explicit bridge to scoped v13 selector helpers', () => {
   const txIndex = app.indexOf('function txModal()');
   const start = app.lastIndexOf('(function(){', txIndex);
-  const end = app.indexOf('\\n})();', start);
+  const end = app.indexOf('\n})();', start);
   const txScope = app.slice(start, end);
   assert.match(app, /window\.orshapTxChoices=Object\.freeze/);
   assert.doesNotMatch(txScope, /\\bv13Tx(?:AllowedWarehouses|ShelfIsValid|StockRows|ItemChoices|ShelfChoices|ShelfLabel|OwnerChoices|BatchChoices)\\b/);
@@ -53,7 +53,7 @@ test('v13 field handlers call the v12 transaction modal through an explicit brid
   const start = app.indexOf('(function(){', designStart);
   const end = app.indexOf('\\n})();', start);
   const designScope = app.slice(start, end);
-  assert.doesNotMatch(designScope, /\\btxModal\\s*\\(/);
+  assert.doesNotMatch(designScope, /\btxModal\s*\(/);
   assert.match(designScope, /window\.orshapV12TxModal\?\.\(\)/);
 });
 
