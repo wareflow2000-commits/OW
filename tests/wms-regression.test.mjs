@@ -117,7 +117,7 @@ test('offline New Request requests a safe reference and uses a clearly marked lo
   const end = app.indexOf("if(a==='v12-tx-retry-reference')", start);
   assert.ok(start >= 0 && end > start, 'canonical New Request handler exists');
   const handler = app.slice(start, end);
-  assert.match(handler, /if\(!navigator\.onLine\)\{txModal\(\);say\(/);
+  assert.match(handler, /if\(!navigator\.onLine\)\{txModal\(\);v12SetLocalTransactionReference\(state\.v12ReferenceRequestId\);say\(/);
   assert.doesNotMatch(handler, /reference_no\s*=\s*['"]OFF-/);
   assert.match(handler, /v12RequestTransactionReference\(state\.v12ReferenceRequestId\)/);
   assert.match(app, /function v12SetLocalTransactionReference\(requestId\)/);
