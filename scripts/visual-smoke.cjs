@@ -256,7 +256,7 @@ const { chromium } = require('playwright');
     assert.equal(await page.locator('.v13-tx-review-backdrop').count(), 0, 'Review overlay should close after confirm, while the editable form remains.');
     assert.equal(await page.locator('#v12-tx-form [name="reference_no"]').inputValue(), 'SMOKE-REF-REVIEW-001', 'Failed save must not clear or fabricate the reference.');
     await page.screenshot({ path: path.join(outDir, 'desktop-transaction-save-failure-ar.png'), fullPage: true });
-    await page.locator('#modal-root [data-action="close-modal"]').last().click();
+    await page.evaluate(() => { state.modal = null; render(); });
     await page.unroute('**/rpc/create_transaction_with_lines*');
 
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-dashboard.png'), fullPage: true });
