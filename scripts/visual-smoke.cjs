@@ -190,6 +190,24 @@ const { chromium } = require('playwright');
       window.orshapV12TxModal?.();
       return { itemAId: itemA.id, itemBId: itemB.id, shelfAId: shelfA.id, shelfBId: shelfB.id, ownerAId: ownerA.id };
     });
+
+    // Exercise the real searchable-select UI against browser-local item records.
+    const itemSelectBox = page.locator('#v12-tx-form select[name="draft_item_id"]').locator('xpath=..');
+    await itemSelectBox.locator('.v13-select-trigger').click();
+    const itemSearch = page.locator('.v13-select-panel:visible input.v13-select-search');
+    for (const [query, expected] of [
+      ['OWNER-ITEM-A', 'OWNER-ITEM-A'],
+      ['OWNER-NUM-A', 'OWNER-NUM-A'],
+      ['Owner Smoke Item A', 'Owner Smoke Item A']
+    ]) {
+      await itemSearch.fill(query);
+      const visibleOptions = await page.locator('.v13-select-panel:visible [role="option"]:visible').allTextContents();
+      assert.ok(visibleOptions.some(text => text.includes(expected)), `Item search must match ${query}.`);
+      assert.ok(!visibleOptions.some(text => /OWNER-ITEM-B|OWNER-NUM-B|Owner Smoke Item B/.test(text)), `Item search ${query} must exclude the nonmatching item.`);
+    }
+    await itemSearch.fill('');
+    await itemSelectBox.locator('.v13-select-trigger').click();
+
     await page.evaluate(id => {
       const shelf = document.querySelector('#v12-tx-form [name="draft_shelf_id"]');
       if (!shelf) throw new Error('Owner test shelf selector is missing.');
