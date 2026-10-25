@@ -51,6 +51,15 @@ test('transaction form uses explicit bridges instead of cross-IIFE helpers', () 
   assert.match(txScope, /function v12Translate\(ar,en\)/);
 });
  
+test('v13 shelf labels use the defined warehouse-name helper', () => {
+  const designStart = app.indexOf('/* ORSHAP WMS V13 — design-system');
+  const start = app.indexOf('(function(){', designStart);
+  const end = app.indexOf('\n})();', start);
+  const designScope = app.slice(start, end);
+  assert.doesNotMatch(designScope, /\bwhName\s*\(/);
+  assert.match(designScope, /v13WarehouseName\(sh\.warehouse_id\)/);
+});
+
 test('v13 field handlers call the v12 transaction modal through an explicit bridge', () => {
   assert.ok(app.includes('window.orshapV12TxModal=txModal;'));
   const designStart = app.indexOf('/* ORSHAP WMS V13 — design-system');
