@@ -441,3 +441,14 @@ test('offline stocktake count queue is visible and retryable from the unified Sy
   assert.ok(app.includes('syncStocktakeCountQueue:flushStocktakeCountQueue'));
   assert.ok(app.includes('await window.orshapV12?.syncStocktakeCountQueue?.()'), 'Sync Now must flush queued stocktake counts');
 });
+
+
+test('stale out-of-scope zero-balance stocktake lines stay blocked even after they are counted', () => {
+  const start=app.indexOf('const staleZeroLines=lines.filter(');
+  const end=app.indexOf(';',start);
+  const expression=app.slice(start,end+1);
+  assert.ok(start>=0&&end>start);
+  assert.ok(!expression.includes('l.counted_qty'), 'counting a stale line must not make it eligible for review');
+  assert.ok(expression.includes('Number(l.system_qty||0)===0'));
+  assert.ok(expression.includes("st.item_id===l.item_id&&st.shelf_id===l.shelf_id"));
+});
