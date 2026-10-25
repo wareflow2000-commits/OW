@@ -99,7 +99,7 @@ FOR EACH ROW EXECUTE FUNCTION public.enforce_stocktake_line_warehouse_scope();
 
 CREATE OR REPLACE FUNCTION public.current_user_can_create_warehouse()
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
-AS $
+AS $create_warehouse$
   SELECT EXISTS (
     SELECT 1 FROM public.profiles p
     WHERE p.id=(SELECT auth.uid()) AND p.status='ACTIVE'
@@ -107,7 +107,7 @@ AS $
       AND cardinality(COALESCE(p.assigned_warehouse_ids,ARRAY[]::uuid[]))=0
       AND public.current_user_has_permission('action:warehouse:manage')
   );
-$;
+$create_warehouse$;
 
 DROP POLICY IF EXISTS warehouses_active_read ON public.warehouses;
 CREATE POLICY warehouses_active_read ON public.warehouses FOR SELECT
