@@ -26,10 +26,15 @@ test('About page defines its own translator outside the v13 IIFE', () => {
   assert.match(source, /const tx\s*=\s*\(ar,en\)=>state\.lang==='ar'\?ar:en/);
 });
 
-test('dashboard and transactions both route to the same new-transaction action', () => {
+test('dashboard and transactions route to a non-blocking New Request modal', () => {
   assert.match(app, /data-action="v12-new-tx">[^<]*\$\{tx\('معاملة جديدة','New transaction'\)\}/);
   assert.match(app, /data-action="v12-new-tx">＋ \$\{T\(\)\.newReq\}/);
-  assert.match(app, /if\(a==='v12-new-tx'\)[\s\S]{0,1500}catch\(e\)\{state\.v12TxMeta\.reference_no='';txModal\(\);say\(/);
+  const start = app.indexOf("if(a==='v12-new-tx'){");
+  const end = app.indexOf("if(a==='v12-tx-add-line'){", start);
+  const handler = app.slice(start, end);
+  assert.match(handler, /txModal\(\);void v12RequestTransactionReference\(state\.v12ReferenceRequestId\);return/);
+  assert.doesNotMatch(handler, /await rpc\('next_transaction_reference'/);
+  assert.match(app, /async function v12RequestTransactionReference\(requestId\)[\s\S]{0,1400}Promise\.race/);
 });
 
 test('transaction shelves are filtered to active valid warehouse-area relationships', () => {
