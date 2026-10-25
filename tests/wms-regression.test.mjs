@@ -246,8 +246,8 @@ test('About page stat cards pass note and icon in the correct argument positions
   const end = app.indexOf('function ', start + 'function aboutPage()'.length);
   assert.ok(start >= 0 && end > start, 'About page renderer exists');
   const source = app.slice(start, end);
-  assert.match(source, /stat\\(tx\\('معادلات موثقة','Documented formulas'\\),String\\(formulas\\.length\\),tx\\('مرجع حسابي','Calculation reference'\\),'ⓘ'\\)/);
-  assert.match(source, /stat\\(tx\\('أدوار RBAC','RBAC roles'\\),String\\(rbac\\.length\\),tx\\('مصفوفة الأدوار','Role matrix'\\),'⛨'\\)/);
-  assert.match(source, /stat\\(tx\\('لغات الواجهة','UI languages'\\),'2',tx\\('العربية والإنجليزية','Arabic and English'\\),'文'\\)/);
-  assert.doesNotMatch(source, /stat\\([^)]*,'[ⓘ⛨文]'\\)/);
+  assert.ok(source.includes("stat(tx('معادلات موثقة','Documented formulas'),String(formulas.length),tx('مرجع حسابي','Calculation reference'),'ⓘ')"));
+  assert.ok(source.includes("stat(tx('أدوار RBAC','RBAC roles'),String(rbac.length),tx('مصفوفة الأدوار','Role matrix'),'⛨')"));
+  assert.ok(source.includes("stat(tx('لغات الواجهة','UI languages'),'2',tx('العربية والإنجليزية','Arabic and English'),'文')"));
+  assert.doesNotMatch(source, /stat\([^)]*,'[ⓘ⛨文]'\)/);
 });
