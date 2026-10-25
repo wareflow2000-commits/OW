@@ -26,10 +26,53 @@ test('About page defines its own translator outside the v13 IIFE', () => {
   assert.match(source, /const tx\s*=\s*\(ar,en\)=>state\.lang==='ar'\?ar:en/);
 });
 
-test('dashboard and transactions both route to the same new-transaction action', () => {
+test('dashboard and transactions route to a non-blocking New Request modal', () => {
   assert.match(app, /data-action="v12-new-tx">[^<]*\$\{tx\('معاملة جديدة','New transaction'\)\}/);
   assert.match(app, /data-action="v12-new-tx">＋ \$\{T\(\)\.newReq\}/);
-  assert.match(app, /if\(a==='v12-new-tx'\)[\s\S]{0,1500}catch\(e\)\{state\.v12TxMeta\.reference_no='';txModal\(\);say\(/);
+  const start = app.indexOf("if(a==='v12-new-tx'){");
+  const end = app.indexOf("if(a==='v12-tx-add-line'){", start);
+  const handler = app.slice(start, end);
+  assert.match(handler, /txModal\(\);void v12RequestTransactionReference\(state\.v12ReferenceRequestId\);return/);
+  assert.doesNotMatch(handler, /await rpc\('next_transaction_reference'/);
+  assert.match(app, /async function v12RequestTransactionReference\(requestId\)[\s\S]{0,1400}Promise\.race/);
+});
+
+test('transaction form uses explicit bridges instead of cross-IIFE helpers', () => {
+  const txIndex = app.indexOf('function txModal()');
+  const start = app.lastIndexOf('(function(){', txIndex);
+  const end = app.indexOf('\n})();', start);
+  const txScope = app.slice(start, end);
+  assert.match(app, /window\.orshapTxChoices=Object\.freeze/);
+  assert.match(app, /window\.orshapV12TxModal=txModal;/);
+  assert.doesNotMatch(txScope, /\bv13Tx(?:AllowedWarehouses|ShelfIsValid|StockRows|ItemChoices|ShelfChoices|ShelfLabel|OwnerChoices|BatchChoices)\b/);
+  assert.doesNotMatch(txScope, /\btx\s*\(/);
+  assert.doesNotMatch(txScope, /\bwhName\s*\(/);
+  assert.match(txScope, /function v12AllowedWarehouses\(\)/);
+  assert.match(txScope, /function v12Translate\(ar,en\)/);
+});
+ 
+test('v13 shelf labels use the defined warehouse-name helper', () => {
+  const designStart = app.indexOf('/* ORSHAP WMS V13 — design-system');
+  const start = app.indexOf('(function(){', designStart);
+  const end = app.indexOf('\n})();', start);
+  const designScope = app.slice(start, end);
+  assert.doesNotMatch(designScope, /\bwhName\s*\(/);
+  assert.match(designScope, /v13WarehouseName\(sh\.warehouse_id\)/);
+});
+
+test('v13 field handlers call the v12 transaction modal through an explicit bridge', () => {
+  assert.ok(app.includes('window.orshapV12TxModal=txModal;'));
+  const designStart = app.indexOf('/* ORSHAP WMS V13 — design-system');
+  const start = app.indexOf('(function(){', designStart);
+  const end = app.indexOf('\n})();', start);
+  const designScope = app.slice(start, end);
+  assert.doesNotMatch(designScope, /\btxModal\s*\(/);
+  assert.match(designScope, /window\.orshapV12TxModal\?\.\(\)/);
+});
+
+test('New Request click events bypass legacy delegated handlers', () => {
+  assert.ok(app.includes("const btn=e.target.closest('[data-action=\"v12-new-tx\"]')"));
+  assert.ok(app.includes("handleAction('v12-new-tx');"));
 });
 
 test('transaction shelves are filtered to active valid warehouse-area relationships', () => {
@@ -49,9 +92,9 @@ test('inbound owner defaults require an explicit valid shelf default; issue defa
 });
 
 test('transfer and return location selectors require an active area and a valid shelf', () => {
-  assert.match(app, /shelves=v5All\('shelves'\)\.filter\(v13TxShelfIsValid\)/);
+  assert.match(app, /function v13TxShelfIsValid\(sh\)/);
   assert.match(app, /validShelves=shelves\.filter\(sh=>sh\.warehouse_id===wh&&!!area&&sh\.storage_area_id===area/);
-  assert.match(app, /const checkLocation=\(s,wh,area\)=>!!s&&v13TxShelfIsValid\(s\)&&s\.warehouse_id===wh&&s\.storage_area_id===area/);
+  assert.match(app, /const checkLocation=\(s,wh,area\)=>!!s&&v12ShelfIsValid\(s\)&&s\.warehouse_id===wh&&s\.storage_area_id===area/);
 });
 
 test('return destination does not auto-select a department merely because only one exists', () => {
@@ -59,7 +102,7 @@ test('return destination does not auto-select a department merely because only o
 });
 
 test('both transaction movement UIs hide orphan shelves until a valid storage area is selected', () => {
-  assert.match(app, /mShelves=v5All\('shelves'\)\.filter\(v13TxShelfIsValid\)/);
+  assert.match(app, /mShelves=v5All\('shelves'\)\.filter\(v12ShelfIsValid\)/);
   assert.match(app, /validShelves=mShelves\.filter\(sh=>sh\.warehouse_id===wh&&!!area&&sh\.storage_area_id===area\)/);
   assert.match(app, /validShelves=shelves\.filter\(sh=>sh\.warehouse_id===wh&&!!area&&sh\.storage_area_id===area/);
 });

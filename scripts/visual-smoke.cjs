@@ -11,7 +11,11 @@ const { chromium } = require('playwright');
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
   const pageErrors = [];
+  const consoleErrors = [];
+  const failedRequests = [];
   page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+  page.on('requestfailed', request => failedRequests.push({ url: request.url(), error: request.failure()?.errorText || 'unknown' }));
 
   try {
     await page.goto(baseURL, { waitUntil: 'domcontentloaded', timeout: 45000 });
@@ -69,23 +73,37 @@ const { chromium } = require('playwright');
       body: JSON.stringify({ message: 'Blocked by visual smoke test; no database call is allowed.' })
     }));
     await page.evaluate(() => {
+      state.session = { id: 'smoke-admin', role: 'SUPER_ADMIN', profile: { id: 'smoke-admin', role: 'SUPER_ADMIN', status: 'ACTIVE', assigned_warehouse_ids: [], custom_permissions: ['*'] } };
       state.page = 'dashboard';
       state.c10ReportKind = '';
       render();
     });
     await page.locator('.page [data-action="v12-new-tx"]').first().click();
-    await page.locator('#v12-tx-form').waitFor({ state: 'visible' });
+    await page.waitForTimeout(500);
+    const dashboardRequestDebug = await page.evaluate(() => ({ page: state.page, hasModalState: !!state.modal, modalRootHasForm: !!document.querySelector('#modal-root #v12-tx-form'), appText: document.querySelector('#app')?.innerText?.slice(0, 250) || '' }));
+    assert.ok(dashboardRequestDebug.modalRootHasForm, 'Dashboard New Request button must open the form. Debug: ' + JSON.stringify({ dashboardRequestDebug, pageErrors }));
+    // Change the item field to exercise the dependent shelf update and cross-IIFE bridge.
+    await page.evaluate(() => {
+      const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
+      if (!item || item.options.length < 2) throw new Error('Seeded item option is unavailable in New Request.');
+      item.value = item.options[1].value;
+      item.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForFunction(() => !!document.querySelector('#v12-tx-form [name="draft_shelf_id"]')?.value, { timeout: 5000 });
+    assert.equal(await page.locator('#v12-tx-form').count(), 1, 'Changing the item must keep the form rendered.');
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-dashboard.png'), fullPage: true });
-    await page.locator('#modal-root [data-action="close-modal"]').click();
+    await page.locator('#modal-root [data-action="close-modal"]').last().click();
 
     await page.evaluate(() => {
       state.page = 'transactions';
       render();
     });
     await page.locator('.page [data-action="v12-new-tx"]').first().click();
-    await page.locator('#v12-tx-form').waitFor({ state: 'visible' });
+    await page.waitForTimeout(500);
+    const transactionsRequestDebug = await page.evaluate(() => ({ page: state.page, hasModalState: !!state.modal, modalRootHasForm: !!document.querySelector('#modal-root #v12-tx-form'), appText: document.querySelector('#app')?.innerText?.slice(0, 250) || '' }));
+    assert.ok(transactionsRequestDebug.modalRootHasForm, 'Transactions New Request button must open the form. Debug: ' + JSON.stringify({ transactionsRequestDebug, pageErrors }));
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-transactions.png'), fullPage: true });
-    await page.locator('#modal-root [data-action="close-modal"]').click();
+    await page.locator('#modal-root [data-action="close-modal"]').last().click();
     await page.unroute('**/rpc/next_transaction_reference*');
 
     await page.locator('.topbar [data-action="toggle-lang"]').click();
@@ -162,8 +180,25 @@ const { chromium } = require('playwright');
     assert.equal(await page.evaluate(() => state.page), 'transactions', 'Mobile navigation must change the active page.');
     await page.screenshot({ path: path.join(outDir, 'mobile-transactions-ar.png'), fullPage: true });
 
+    await page.route('**/rpc/next_transaction_reference*', route => route.fulfill({
+      status: 403,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Blocked by visual smoke test; no database call is allowed.' })
+    }));
+    await page.locator('.page [data-action="v12-new-tx"]').first().click();
+    await page.waitForTimeout(300);
+    const mobileRequestDebug = await page.evaluate(() => ({ hasModalState: !!state.modal, modalRootHasForm: !!document.querySelector('#modal-root #v12-tx-form') }));
+    assert.ok(mobileRequestDebug.modalRootHasForm, 'Mobile New Request button must open the form. Debug: ' + JSON.stringify({ mobileRequestDebug, pageErrors }));
+    await page.screenshot({ path: path.join(outDir, 'mobile-new-request.png'), fullPage: true });
+    await page.locator('#modal-root [data-action="close-modal"]').last().click();
+    await page.unroute('**/rpc/next_transaction_reference*');
+
+
+    const unexpectedConsoleErrors = consoleErrors.filter(message => !/Failed to load resource: the server responded with a status of (401|403)\b/.test(message));
     assert.deepEqual(pageErrors, [], 'No uncaught browser JavaScript errors are allowed during the visual smoke test.');
-    console.log(JSON.stringify({ status: 'passed', screenshots: fs.readdirSync(outDir), rtlDesktop, ltrDesktop, mobileLogin, mobileShell, pageErrors }, null, 2));
+    assert.deepEqual(unexpectedConsoleErrors, [], 'Unexpected browser console errors: ' + JSON.stringify(unexpectedConsoleErrors));
+    assert.deepEqual(failedRequests, [], 'Network requests must not fail: ' + JSON.stringify(failedRequests));
+    console.log(JSON.stringify({ status: 'passed', screenshots: fs.readdirSync(outDir), rtlDesktop, ltrDesktop, mobileLogin, mobileShell, pageErrors, expectedHttpErrors: consoleErrors, failedRequests }, null, 2));
   } finally {
     await browser.close();
   }
