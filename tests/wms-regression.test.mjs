@@ -492,16 +492,16 @@ test('stocktake session list and active session are restricted to accessible war
 });
 
 test('offline transaction outbox permits only receipts and issues; stocktake uses its own queue', () => {
-  assert.match(app, /function v13OfflineTransactionAllowed\\(type\\)\\{return \\['GRN','ISSUE'\\]/);
-  assert.match(app, /const offlineEligible=v13OfflineTransactionAllowed\\(tx\\.transaction_type\\)/);
+  assert.match(app, /function v13OfflineTransactionAllowed\(type\)\{return \['GRN','ISSUE'\]/);
+  assert.match(app, /const offlineEligible=v13OfflineTransactionAllowed\(tx\.transaction_type\)/);
   assert.match(app, /Offline mode supports goods receipts, issues, and stocktake counts only/);
-  assert.match(app, /!v13OfflineTransactionAllowed\\(tx\\.transaction_type\\)/);
+  assert.match(app, /!v13OfflineTransactionAllowed\(tx\.transaction_type\)/);
   assert.match(app, /orshap_stocktake_count_queue_v1/);
 });
 
 test('warehouse scope migration hardens RLS reads and SECURITY DEFINER write paths', () => {
   const migration = fs.readFileSync(new URL('../supabase/migrations/20261025214500_orshap_enforce_assigned_warehouse_scope_v13958.sql', import.meta.url), 'utf8');
-  assert.match(migration, /CREATE OR REPLACE FUNCTION public\\.current_user_can_access_warehouse/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.current_user_can_access_warehouse/);
   assert.match(migration, /trg_enforce_transaction_warehouse_scope/);
   assert.match(migration, /trg_enforce_stocktake_warehouse_scope/);
   assert.match(migration, /DROP POLICY IF EXISTS transactions_permission_select/);
