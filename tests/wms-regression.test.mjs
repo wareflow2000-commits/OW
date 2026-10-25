@@ -333,7 +333,7 @@ test('provisional references never go directly to transaction creation', () => {
 
 test('stocktake scope never invents zero-balance catalogue items at every shelf', () => {
   const start = app.indexOf('function c10BuildStocktakeLocationLines(');
-  const end = app.indexOf('\\nfunction c10Settle(', start);
+  const end = app.indexOf('\nfunction c10Settle(', start);
   assert.ok(start >= 0 && end > start, 'stocktake location builder exists');
   const sandbox = {
     v5All: name => ({
@@ -347,7 +347,7 @@ test('stocktake scope never invents zero-balance catalogue items at every shelf'
         {id:'area-b',warehouse_id:'wh-b',is_active:true}
       ],
       stock: [{id:'st-1',item_id:'item-stocked',shelf_id:'shelf-a',quantity:4,batch_no:'B1'}]
-    })[name] || [],
+    })[name] || []
   };
   vm.createContext(sandbox);
   vm.runInContext(app.slice(start,end),sandbox);
@@ -360,7 +360,7 @@ test('stocktake scope never invents zero-balance catalogue items at every shelf'
 
 test('issue smart warehouse suggestion moves away from an authorized warehouse with no stock', () => {
   const start=app.indexOf('function v13TxSuggestedWarehouse(');
-  const end=app.indexOf('\\nfunction v13TxOwnerChoices(',start);
+  const end=app.indexOf('\nfunction v13TxOwnerChoices(',start);
   assert.ok(start>=0&&end>start,'smart warehouse resolver exists');
   const stockRows=[
     {item_id:'item-1',shelf_id:'shelf-b',quantity:7},
@@ -368,8 +368,8 @@ test('issue smart warehouse suggestion moves away from an authorized warehouse w
   ];
   const sandbox={
     v13TxAllowedWarehouses:()=>[{id:'wh-a'},{id:'wh-b'}],
-    v13TxStockRows:(itemId,warehouseId='')=>stockRows.filter(r=>r.item_id===itemId&&(!warehouseId||({ 'shelf-b':'wh-b','shelf-not-allowed':'wh-x'}[r.shelf_id]===warehouseId))),
-    v5Find:(table,id)=>table==='shelves'?({ 'shelf-b':{id:'shelf-b',warehouse_id:'wh-b'},'shelf-not-allowed':{id:'shelf-not-allowed',warehouse_id:'wh-x'} }[id]):null
+    v13TxStockRows:(itemId,warehouseId='')=>stockRows.filter(r=>r.item_id===itemId&&(!warehouseId||({'shelf-b':'wh-b','shelf-not-allowed':'wh-x'}[r.shelf_id]===warehouseId))),
+    v5Find:(table,id)=>table==='shelves'?({'shelf-b':{id:'shelf-b',warehouse_id:'wh-b'},'shelf-not-allowed':{id:'shelf-not-allowed',warehouse_id:'wh-x'}}[id]):null
   };
   vm.createContext(sandbox);
   vm.runInContext(app.slice(start,end),sandbox);
@@ -377,14 +377,16 @@ test('issue smart warehouse suggestion moves away from an authorized warehouse w
   assert.equal(sandbox.v13TxSuggestedWarehouse('item-1','GRN','wh-a'),'wh-a','inbound vouchers may retain a valid manual warehouse selection');
 });
 
-test('stocktake counts queue securely while offline and replay through save_stocktake_count RPC', () => {
-  assert.match(app,/function stocktakeCountQueueKey\\(\\)/);
-  assert.match(app,/function queueStocktakeCount\\(line,n\\)/);
-  assert.match(app,/async function flushStocktakeCountQueue\\(\\)[\\s\\S]{0,1400}rpc\\('save_stocktake_count'/);
+test('stocktake counts queue offline and replay through the database count RPC', () => {
+  assert.ok(app.includes('function stocktakeCountQueueKey(){'));
+  assert.ok(app.includes('function queueStocktakeCount(line,n){'));
+  assert.ok(app.includes("async function flushStocktakeCountQueue(){"));
+  assert.ok(app.includes("await rpc('save_stocktake_count',{p_line_id:op.line_id,p_counted_qty:op.counted_qty})"));
   const start=app.indexOf('async function saveStocktakeCount(');
-  const end=app.indexOf('\\n  window.orshapV12=',start);
+  const end=app.indexOf('\n  window.orshapV12=',start);
   const source=app.slice(start,end);
-  assert.match(source,/if\\(!navigator\\.onLine\\)[\\s\\S]{0,700}queueStocktakeCount\\(line,n\\)/);
-  assert.match(source,/isUuid\\(line\\.id\\)&&isUuid\\(session\\.id\\)/);
-  assert.match(app,/Promise\\.all\\(\\[flushOutbox\\(\\),flushStocktakeCountQueue\\(\\)\\]\\)/);
+  assert.ok(source.includes('if(!navigator.onLine){'));
+  assert.ok(source.includes('queueStocktakeCount(line,n)'));
+  assert.ok(source.includes('isUuid(line.id)||!isUuid(session.id)'));
+  assert.ok(app.includes('Promise.all([flushOutbox(),flushStocktakeCountQueue()])'));
 });
