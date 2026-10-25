@@ -76,7 +76,7 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $$
 DECLARE v_session_id uuid; v_warehouse_id uuid;
 BEGIN
-  IF auth.uid() IS NULL THEN RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END; END IF;
+  IF auth.uid() IS NULL THEN IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW; END IF;
   v_session_id := CASE WHEN TG_OP='DELETE' THEN OLD.session_id ELSE NEW.session_id END;
   SELECT s.warehouse_id INTO v_warehouse_id FROM public.stocktake_sessions s WHERE s.id=v_session_id;
   IF v_warehouse_id IS NULL OR NOT public.current_user_can_access_warehouse(v_warehouse_id) THEN
@@ -85,7 +85,7 @@ BEGIN
   IF TG_OP='UPDATE' AND OLD.session_id IS DISTINCT FROM NEW.session_id THEN
     RAISE EXCEPTION 'Stocktake lines cannot be moved between sessions';
   END IF;
-  RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
+  IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW;
 END;
 $$;
 DROP TRIGGER IF EXISTS trg_enforce_stocktake_line_warehouse_scope ON public.stocktake_lines;
