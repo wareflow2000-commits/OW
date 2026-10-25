@@ -97,15 +97,57 @@ DROP TRIGGER IF EXISTS trg_enforce_stocktake_line_warehouse_scope ON public.stoc
 CREATE TRIGGER trg_enforce_stocktake_line_warehouse_scope BEFORE INSERT OR UPDATE OR DELETE ON public.stocktake_lines
 FOR EACH ROW EXECUTE FUNCTION public.enforce_stocktake_line_warehouse_scope();
 
+CREATE OR REPLACE FUNCTION public.current_user_can_create_warehouse()
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
+AS $
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles p
+    WHERE p.id=(SELECT auth.uid()) AND p.status='ACTIVE'
+      AND p.role IN ('SUPER_ADMIN','ADMIN','MANAGER')
+      AND cardinality(COALESCE(p.assigned_warehouse_ids,ARRAY[]::uuid[]))=0
+      AND public.current_user_has_permission('action:warehouse:manage')
+  );
+$;
+
 DROP POLICY IF EXISTS warehouses_active_read ON public.warehouses;
 CREATE POLICY warehouses_active_read ON public.warehouses FOR SELECT
 USING (public.current_user_is_active() AND public.current_user_can_access_warehouse(id));
+DROP POLICY IF EXISTS warehouses_manager_insert ON public.warehouses;
+CREATE POLICY warehouses_manager_insert ON public.warehouses FOR INSERT
+WITH CHECK (public.current_user_can_create_warehouse());
+DROP POLICY IF EXISTS warehouses_manager_update ON public.warehouses;
+CREATE POLICY warehouses_manager_update ON public.warehouses FOR UPDATE
+USING (public.current_user_has_permission('action:warehouse:manage') AND public.current_user_can_access_warehouse(id))
+WITH CHECK (public.current_user_has_permission('action:warehouse:manage') AND public.current_user_can_access_warehouse(id));
+DROP POLICY IF EXISTS warehouses_manager_delete ON public.warehouses;
+CREATE POLICY warehouses_manager_delete ON public.warehouses FOR DELETE
+USING (public.current_user_has_permission('action:warehouse:manage') AND public.current_user_can_access_warehouse(id));
 DROP POLICY IF EXISTS storage_areas_active_read ON public.storage_areas;
 CREATE POLICY storage_areas_active_read ON public.storage_areas FOR SELECT
 USING (public.current_user_is_active() AND public.current_user_can_access_warehouse(warehouse_id));
+DROP POLICY IF EXISTS storage_areas_manager_insert ON public.storage_areas;
+CREATE POLICY storage_areas_manager_insert ON public.storage_areas FOR INSERT
+WITH CHECK (public.current_user_has_permission('action:facility:manage') AND public.current_user_can_access_warehouse(warehouse_id));
+DROP POLICY IF EXISTS storage_areas_manager_update ON public.storage_areas;
+CREATE POLICY storage_areas_manager_update ON public.storage_areas FOR UPDATE
+USING (public.current_user_has_permission('action:facility:manage') AND public.current_user_can_access_warehouse(warehouse_id))
+WITH CHECK (public.current_user_has_permission('action:facility:manage') AND public.current_user_can_access_warehouse(warehouse_id));
+DROP POLICY IF EXISTS storage_areas_manager_delete ON public.storage_areas;
+CREATE POLICY storage_areas_manager_delete ON public.storage_areas FOR DELETE
+USING (public.current_user_has_permission('action:facility:manage') AND public.current_user_can_access_warehouse(warehouse_id));
 DROP POLICY IF EXISTS shelves_active_read ON public.shelves;
 CREATE POLICY shelves_active_read ON public.shelves FOR SELECT
 USING (public.current_user_is_active() AND public.current_user_can_access_warehouse(warehouse_id));
+DROP POLICY IF EXISTS shelves_manager_insert ON public.shelves;
+CREATE POLICY shelves_manager_insert ON public.shelves FOR INSERT
+WITH CHECK (public.current_user_has_permission('action:facility:manage') AND public.current_user_can_access_warehouse(warehouse_id));
+DROP POLICY IF EXISTS shelves_manager_update ON public.shelves;
+CREATE POLICY shelves_manager_update ON public.shelves FOR UPDATE
+USING (public.current_user_has_permission('action:facility:manage') AND public.current_user_can_access_warehouse(warehouse_id))
+WITH CHECK (public.current_user_has_permission('action:facility:manage') AND public.current_user_can_access_warehouse(warehouse_id));
+DROP POLICY IF EXISTS shelves_manager_delete ON public.shelves;
+CREATE POLICY shelves_manager_delete ON public.shelves FOR DELETE
+USING (public.current_user_has_permission('action:facility:manage') AND public.current_user_can_access_warehouse(warehouse_id));
 DROP POLICY IF EXISTS stock_authenticated_read ON public.stock;
 CREATE POLICY stock_authenticated_read ON public.stock FOR SELECT
 USING (public.current_user_has_permission('table:inventory:view') AND EXISTS (
