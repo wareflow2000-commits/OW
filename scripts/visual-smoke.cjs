@@ -110,6 +110,38 @@ const { chromium } = require('playwright');
     });
     await page.waitForFunction(() => !!document.querySelector('#v12-tx-form [name="draft_shelf_id"]')?.value, { timeout: 5000 });
     assert.equal(await page.locator('#v12-tx-form').count(), 1, 'Changing the item must keep the form rendered.');
+
+    // Verify the one-valid-shelf auto-selection is cleared when a second valid shelf appears.
+    const selectedItemId = await page.locator('#v12-tx-form [name="draft_item_id"]').inputValue();
+    await page.evaluate(() => {
+      const shelfSelect = document.querySelector('#v12-tx-form [name="draft_shelf_id"]');
+      const firstShelf = V5_DB.shelves.find(sh => sh.id === shelfSelect?.value);
+      if (!firstShelf) throw new Error('The initially auto-selected valid shelf is missing.');
+      V5_DB.shelves.push({
+        id: 'smoke-shelf-second-valid',
+        warehouse_id: firstShelf.warehouse_id,
+        storage_area_id: firstShelf.storage_area_id,
+        code: 'SMOKE-SHELF-02',
+        name: 'Smoke Shelf 2',
+        is_active: true
+      });
+      const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
+      item.value = '';
+      item.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.locator('#v12-tx-form').waitFor({ state: 'visible' });
+    await page.evaluate(itemId => {
+      const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
+      if (!item) throw new Error('New Request item selector is missing after rerender.');
+      item.value = itemId;
+      item.dispatchEvent(new Event('change', { bubbles: true }));
+    }, selectedItemId);
+    await page.waitForFunction(() => {
+      const shelf = document.querySelector('#v12-tx-form [name="draft_shelf_id"]');
+      return !!shelf && shelf.options.length >= 3 && shelf.value === '';
+    }, { timeout: 5000 });
+    assert.equal(await page.locator('#v12-tx-form [name="draft_shelf_id"]').inputValue(), '', 'Multiple valid shelves must require an explicit selection.');
+
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-dashboard.png'), fullPage: true });
     await page.locator('#modal-root [data-action="close-modal"]').last().click();
 
