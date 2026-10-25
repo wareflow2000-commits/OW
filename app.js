@@ -144,7 +144,7 @@ let V5_DB;try{V5_DB=JSON.parse(localStorage.getItem(V5_KEY)||'null')}catch(e){V5
 function v5Save(){localStorage.setItem(V5_KEY,JSON.stringify(V5_DB)); if(window.orshapSQLite?.saveState) window.orshapSQLite.saveState(V5_DB).catch(()=>{}); }
 function v5All(k){
   const rows=V5_DB[k]||[];
-  const scoped=new Set(['warehouses','storage_areas','shelves','stock','transactions','transaction_lines','stocktake_sessions','stocktake_lines','stocktake_logs','inventory_ledger','transaction_ledger']);
+  const scoped=new Set(['warehouses','storage_areas','shelves','stock','transactions','transaction_lines','stocktake_sessions','stocktake_lines','stocktake_logs','inventory_ledger','transaction_ledger','transaction_audit','archive_movements','archive_balances','stock_transfers','stock_transfer_orders','audit_logs']);
   if(!scoped.has(k))return rows;
   if(!state.session?.id)return [];
   const allowed=id=>typeof c10AccessibleWarehouse==='function'&&c10AccessibleWarehouse(id);
@@ -155,7 +155,10 @@ function v5All(k){
   if(k==='transaction_lines')return rows.filter(x=>{const tx=(V5_DB.transactions||[]).find(y=>y.id===x.transaction_id);return !!tx&&allowed(tx.warehouse_id)});
   if(k==='stocktake_sessions')return rows.filter(x=>allowed(x.warehouse_id));
   if(k==='stocktake_lines'||k==='stocktake_logs')return rows.filter(x=>{const ss=(V5_DB.stocktake_sessions||[]).find(y=>y.id===x.session_id);return !!ss&&allowed(ss.warehouse_id)});
-  if(k==='inventory_ledger'||k==='transaction_ledger')return rows.filter(x=>allowed(x.warehouse_id));
+  if(k==='inventory_ledger'||k==='transaction_ledger'||k==='archive_movements'||k==='archive_balances')return rows.filter(x=>allowed(x.warehouse_id));
+  if(k==='transaction_audit')return rows.filter(x=>{const tx=(V5_DB.transactions||[]).find(y=>y.id===x.transaction_id);const wid=x.warehouse_id||tx?.warehouse_id||x.snapshot?.warehouse_id;return !!wid&&allowed(wid)});
+  if(k==='stock_transfers'||k==='stock_transfer_orders')return rows.filter(x=>allowed(x.source_warehouse_id)||allowed(x.destination_warehouse_id));
+  if(k==='audit_logs')return rows.filter(x=>{let wid=x.warehouse_id||x.details?.warehouse_id||x.details?.warehouseId||null;if(!wid&&typeof x.details==='string'){try{const d=JSON.parse(x.details);wid=d?.warehouse_id||d?.warehouseId||null;x._scopeTxId=d?.tx_id||d?.transaction_id||null}catch(_){}}const txid=x.details?.tx_id||x.details?.transaction_id||x._scopeTxId||(String(x.entity||'').toUpperCase()==='TRANSACTION'?x.entity_id:null);if(!wid&&txid){const tx=(V5_DB.transactions||[]).find(y=>y.id===txid);wid=tx?.warehouse_id||null;}return wid?allowed(wid):true});
   return rows;
 }
 function v5Find(k,id){return v5All(k).find(x=>x.id===id)}function v5Qty(id){return v5All('stock').filter(x=>x.item_id===id).reduce((n,x)=>n+Number(x.quantity||0),0)}function v5Audit(action,entity,id,payload){V5_DB.audit_logs.push({id:uid(),action,entity,entity_id:id,details:payload||{},created_at:new Date().toISOString()});v5Save()}
@@ -880,7 +883,7 @@ try{render()}catch(e){console.error('V10 final render failed',e)}
       V5_DB.warehouses=V5_DB.warehouses.filter(x=>allow.has(x.id));V5_DB.storage_areas=(V5_DB.storage_areas||[]).filter(x=>allow.has(x.warehouse_id));V5_DB.shelves=V5_DB.shelves.filter(x=>allow.has(x.warehouse_id));V5_DB.stock=V5_DB.stock.filter(x=>shelves.has(x.shelf_id));
       V5_DB.transactions=V5_DB.transactions.filter(x=>txids.has(x.id));V5_DB.transaction_lines=V5_DB.transaction_lines.filter(x=>txids.has(x.transaction_id));V5_DB.stocktake_sessions=V5_DB.stocktake_sessions.filter(x=>sessions.has(x.id));V5_DB.stocktake_lines=V5_DB.stocktake_lines.filter(x=>sessions.has(x.session_id));V5_DB.stocktake_logs=V5_DB.stocktake_logs.filter(x=>sessions.has(x.session_id));
       for(const k of ['inventory_ledger','transaction_ledger','transaction_audit','archive_movements','archive_balances'])V5_DB[k]=(V5_DB[k]||[]).filter(x=>allow.has(x.warehouse_id));
-      V5_DB.audit_logs=V5_DB.audit_logs.filter(x=>{let wid=x.warehouse_id||null;if(!wid&&typeof x.details==='string'){try{wid=JSON.parse(x.details)?.warehouse_id||null}catch(_){}}return wid?allow.has(wid):true});
+      V5_DB.audit_logs=V5_DB.audit_logs.filter(x=>{let wid=x.warehouse_id||x.details?.warehouse_id||x.details?.warehouseId||null,details=x.details||{};if(!wid&&typeof details==='string'){try{details=JSON.parse(details);wid=details?.warehouse_id||details?.warehouseId||null}catch(_){}}const txid=details?.tx_id||details?.transaction_id||(String(x.entity||'').toUpperCase()==='TRANSACTION'?x.entity_id:null);if(!wid&&txid)wid=V5_DB.transactions.find(t=>t.id===txid)?.warehouse_id||null;return wid?allow.has(wid):true});
     }else if(!admin){
       V5_DB.warehouses=[];V5_DB.storage_areas=[];V5_DB.shelves=[];V5_DB.stock=[];V5_DB.transactions=[];V5_DB.transaction_lines=[];V5_DB.stocktake_sessions=[];V5_DB.stocktake_lines=[];V5_DB.stocktake_logs=[];V5_DB.inventory_ledger=[];V5_DB.transaction_ledger=[];V5_DB.transaction_audit=[];V5_DB.archive_movements=[];V5_DB.archive_balances=[];V5_DB.audit_logs=[];
     }
