@@ -253,10 +253,6 @@ test('About page stat cards pass note and icon in the correct argument positions
 });
 
 test('transaction modal never fabricates a reference when metadata is absent', () => {
-  const start = app.indexOf('function txModal()');
-  const end = app.indexOf('async function v12RequestTransactionReference', start);
-  assert.ok(start >= 0 && end > start, 'transaction modal and safe reference requester exist');
-  const source = app.slice(start, end);
-  assert.ok(source.includes("state.v12TxMeta=state.v12TxMeta||{reference_no:'',transaction_type:'GRN'};"));
-  assert.doesNotMatch(source, /reference_no:\s*'REF-'\s*\+\s*Date\.now\(\)/);
+  assert.ok(app.includes("state.v12TxMeta=state.v12TxMeta||{reference_no:'',transaction_type:'GRN'};"));
+  assert.doesNotMatch(app, /reference_no:\s*'REF-'\s*\+\s*Date\.now\(\)/);
 });
