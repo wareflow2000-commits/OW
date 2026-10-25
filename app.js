@@ -366,8 +366,13 @@ function c10Shelf(id){return v5Find('shelves',id)||{}}
 function c10TxLines(txId){return v5All('transaction_lines').filter(x=>x.transaction_id===txId)}
 function c10AccessibleWarehouse(id){
   const p=state.session?.profile||state.session||{};
-  if(!p||['SUPER_ADMIN','ADMIN'].includes(p.role))return true;
-  const a=p.assigned_warehouse_ids||[];return !id||a.includes(id);
+  const role=String(p.role||state.session?.role||'').toUpperCase();
+  const assigned=Array.isArray(p.assigned_warehouse_ids)?p.assigned_warehouse_ids:[];
+  // An explicit warehouse assignment constrains every role, including SUPER_ADMIN/ADMIN.
+  // Unassigned administrators retain global access; an unassigned non-admin has no warehouse access.
+  if(!id)return ['SUPER_ADMIN','ADMIN'].includes(role)&&assigned.length===0;
+  if(['SUPER_ADMIN','ADMIN'].includes(role)&&assigned.length===0)return true;
+  return assigned.includes(id);
 }
 function c10Audit(action,entity,id,details){c10Ensure();V5_DB.audit_logs.push({id:uid(),action,entity,entity_id:id,details:details||{},created_at:c10Now(),user_id:state.session?.id||null});v5Save()}
 function c10Queue(table,operation,payload,baseVersion){c10Ensure();V5_DB.sync_queue.push({id:uid(),operation_id:uid(),table,operation,payload,base_version:baseVersion||0,device_id:localStorage.getItem('orshap_device_id')||'web-device',timestamp:Date.now(),synced:0,retry_count:0});v5Save()}
