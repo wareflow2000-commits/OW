@@ -121,3 +121,32 @@ test('offline New Request never fabricates a transaction reference', () => {
   assert.doesNotMatch(handler, /reference_no\s*=\s*['"]OFF-/);
   assert.match(handler, /v12RequestTransactionReference\(state\.v12ReferenceRequestId\)/);
 });
+
+test('system boolean settings are normalized to canonical TRUE/FALSE values', () => {
+  const start = app.indexOf('function s81Set(');
+  const end = app.indexOf('\\nfunction s81Print', start);
+  assert.ok(start >= 0 && end > start, 'system setting writer exists');
+  const queued = [];
+  const sandbox = {
+    V5_DB: { systemSettings: [] },
+    s81Ensure() {},
+    v7Queue(...args) { queued.push(args); }
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(app.slice(start, end), sandbox);
+  sandbox.s81Set('REQUIRE_APPROVAL', true);
+  sandbox.s81Set('USE_UNIT_CONVERSION', false);
+  sandbox.s81Set('FEATURE_USE_COST_SUPPLIER', 'true');
+  sandbox.s81Set('COMPANY_NAME', true);
+  assert.deepEqual(
+    sandbox.V5_DB.systemSettings.map(row => [row.key, row.value]),
+    [
+      ['REQUIRE_APPROVAL', 'TRUE'],
+      ['USE_UNIT_CONVERSION', 'FALSE'],
+      ['FEATURE_USE_COST_SUPPLIER', 'TRUE'],
+      ['COMPANY_NAME', 'true']
+    ]
+  );
+  assert.equal(queued[0][2].value, 'TRUE', 'queued persistence must use the canonical value');
+  assert.equal(queued[1][2].value, 'FALSE', 'queued persistence must use the canonical value');
+});
