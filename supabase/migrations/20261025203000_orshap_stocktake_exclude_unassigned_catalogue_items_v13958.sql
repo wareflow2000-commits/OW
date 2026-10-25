@@ -47,7 +47,6 @@ BEGIN
     JOIN public.shelves AS sh
       ON sh.id = st.shelf_id
      AND sh.warehouse_id = v_session.warehouse_id
-     AND COALESCE(sh.is_active, true) = true
     JOIN public.storage_areas AS sa
       ON sa.id = sh.storage_area_id
      AND sa.warehouse_id = sh.warehouse_id
