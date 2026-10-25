@@ -159,3 +159,27 @@ test('legacy shelf form requires explicit storage-area choice when multiple area
   assert.ok(source.includes("const areas=v5All('storage_areas').filter(a=>a.warehouse_id===wh&&a.is_active!==false),selected=areas.length===1?areas[0].id:''"));
   assert.ok(source.includes("v13SetOptions(areaSel,areas,selected") && source.includes(",true);"), 'the select must keep an empty option for explicit choice');
 });
+
+test('owning-department selection preserves valid choices and clears invalid ones', () => {
+  const start = app.indexOf('function v13TxResolveOwnerSelection(');
+  const end = app.indexOf('function v13TxShelfLabel', start);
+  assert.ok(start >= 0 && end > start, 'owner-selection resolver exists');
+  const choiceMap = new Map([
+    ['item|shelf-multiple|ISSUE|warehouse', [{ id: 'owner-a' }, { id: 'owner-b' }]],
+    ['item|shelf-b|ISSUE|warehouse', [{ id: 'owner-b' }, { id: 'owner-c' }]],
+    ['item|shelf-single|ISSUE|warehouse', [{ id: 'owner-b' }]]
+  ]);
+  const sandbox = {
+    v13TxOwnerChoices: (item, shelf, type, warehouse) => choiceMap.get(`${item}|${shelf}|${type}|${warehouse}`) || [],
+    v13TxUniqueOwner: (item, shelf, type, warehouse) => {
+      const choices = choiceMap.get(`${item}|${shelf}|${type}|${warehouse}`) || [];
+      return choices.length === 1 ? choices[0].id : '';
+    }
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(app.slice(start, end), sandbox);
+  assert.equal(sandbox.v13TxResolveOwnerSelection('item', 'shelf-multiple', 'ISSUE', 'warehouse', 'owner-a'), 'owner-a');
+  assert.equal(sandbox.v13TxResolveOwnerSelection('item', 'shelf-b', 'ISSUE', 'warehouse', 'owner-a'), '');
+  assert.equal(sandbox.v13TxResolveOwnerSelection('item', 'shelf-single', 'ISSUE', 'warehouse', ''), 'owner-b');
+  assert.equal(sandbox.v13TxResolveOwnerSelection('', 'shelf-single', 'ISSUE', 'warehouse', 'owner-b'), '');
+});
