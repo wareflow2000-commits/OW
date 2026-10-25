@@ -67,11 +67,16 @@ const { chromium } = require('playwright');
     await page.screenshot({ path: path.join(outDir, 'desktop-reports-ar.png'), fullPage: true });
 
     // Block reference-generation RPC in the smoke test so no production sequence is consumed.
-    await page.route('**/rpc/next_transaction_reference*', route => route.fulfill({
-      status: 403,
-      contentType: 'application/json',
-      body: JSON.stringify({ message: 'Blocked by visual smoke test; no database call is allowed.' })
-    }));
+    // Count attempts to verify the retry action really reissues the safe database request.
+    let referenceRpcAttempts = 0;
+    await page.route('**/rpc/next_transaction_reference*', route => {
+      referenceRpcAttempts++;
+      return route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Blocked by visual smoke test; no database call is allowed.' })
+      });
+    });
     await page.evaluate(() => {
       state.session = { id: 'smoke-admin', role: 'SUPER_ADMIN', profile: { id: 'smoke-admin', role: 'SUPER_ADMIN', status: 'ACTIVE', assigned_warehouse_ids: [], custom_permissions: ['*'] } };
       state.page = 'dashboard';
@@ -82,6 +87,20 @@ const { chromium } = require('playwright');
     await page.waitForTimeout(500);
     const dashboardRequestDebug = await page.evaluate(() => ({ page: state.page, hasModalState: !!state.modal, modalRootHasForm: !!document.querySelector('#modal-root #v12-tx-form'), appText: document.querySelector('#app')?.innerText?.slice(0, 250) || '' }));
     assert.ok(dashboardRequestDebug.modalRootHasForm, 'Dashboard New Request button must open the form. Debug: ' + JSON.stringify({ dashboardRequestDebug, pageErrors }));
+    await page.locator('#modal-root [data-action="v12-tx-retry-reference"]').waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const button = document.querySelector('#modal-root [data-action="v12-tx-retry-reference"]');
+      return !!button && !button.disabled;
+    }, { timeout: 5000 });
+    assert.ok(referenceRpcAttempts >= 1, 'Opening New Request must attempt safe reference generation.');
+    await page.locator('#modal-root [data-action="v12-tx-retry-reference"]').click();
+    await page.waitForFunction(() => {
+      const button = document.querySelector('#modal-root [data-action="v12-tx-retry-reference"]');
+      return !!button && !button.disabled;
+    }, { timeout: 5000 });
+    assert.ok(referenceRpcAttempts >= 2, 'Retry must issue a second reference-generation request.');
+    assert.equal(await page.locator('#v12-tx-form').count(), 1, 'Reference-generation failure and retry must keep the New Request form open.');
+    assert.equal(await page.locator('#v12-tx-form [name="reference_no"]').inputValue(), '', 'A failed reference request must not invent a reference number.');
     // Change the item field to exercise the dependent shelf update and cross-IIFE bridge.
     await page.evaluate(() => {
       const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
