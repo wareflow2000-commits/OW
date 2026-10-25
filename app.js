@@ -141,7 +141,24 @@ document.addEventListener('click',e=>{const side=e.target.closest('.v13-sidebar'
 const V5_KEY='orshap_wms_data_v5';
 function v5Seed(){const w=uid(),a=uid(),sh=uid(),i=uid();return{warehouses:[{id:w,code:'WH-01',name:'المستودع الرئيسي'}],storage_areas:[{id:a,warehouse_id:w,code:'AREA-01',name:'منطقة التخزين الرئيسية',is_active:true}],shelves:[{id:sh,warehouse_id:w,storage_area_id:a,code:'A-01-01',name:'رف A-01-01'}],items:[{id:i,code:'ITM-001',item_number:'100-001',name_en:'Bearing 6205',name_ar:'رولمان بلي 6205',base_unit:'PCS',purchase_unit:'CTN',conversion_factor:20,safety_stock:10,weight:0.35,status:'ACTIVE',cost:25,supplier:'Main Supplier'}],stock:[{id:uid(),item_id:i,shelf_id:sh,warehouse_id:w,quantity:42,opening_balance:42,batch_no:'B-01'}],transactions:[],stocktake_sessions:[],stocktake_lines:[],audit_logs:[]}}
 let V5_DB;try{V5_DB=JSON.parse(localStorage.getItem(V5_KEY)||'null')}catch(e){V5_DB=null}if(!V5_DB){V5_DB=v5Seed();V5_DB.__seeded_demo=true;localStorage.setItem(V5_KEY,JSON.stringify(V5_DB))}
-function v5Save(){localStorage.setItem(V5_KEY,JSON.stringify(V5_DB)); if(window.orshapSQLite?.saveState) window.orshapSQLite.saveState(V5_DB).catch(()=>{}); }function v5All(k){return V5_DB[k]||[]}function v5Find(k,id){return v5All(k).find(x=>x.id===id)}function v5Qty(id){return v5All('stock').filter(x=>x.item_id===id).reduce((n,x)=>n+Number(x.quantity||0),0)}function v5Audit(action,entity,id,payload){V5_DB.audit_logs.push({id:uid(),action,entity,entity_id:id,details:payload||{},created_at:new Date().toISOString()});v5Save()}
+function v5Save(){localStorage.setItem(V5_KEY,JSON.stringify(V5_DB)); if(window.orshapSQLite?.saveState) window.orshapSQLite.saveState(V5_DB).catch(()=>{}); }
+function v5All(k){
+  const rows=V5_DB[k]||[];
+  const scoped=new Set(['warehouses','storage_areas','shelves','stock','transactions','transaction_lines','stocktake_sessions','stocktake_lines','stocktake_logs','inventory_ledger','transaction_ledger']);
+  if(!scoped.has(k))return rows;
+  if(!state.session?.id)return [];
+  const allowed=id=>typeof c10AccessibleWarehouse==='function'&&c10AccessibleWarehouse(id);
+  if(k==='warehouses')return rows.filter(x=>allowed(x.id));
+  if(k==='storage_areas'||k==='shelves')return rows.filter(x=>allowed(x.warehouse_id));
+  if(k==='stock')return rows.filter(x=>{const sh=(V5_DB.shelves||[]).find(y=>y.id===x.shelf_id);return allowed(sh?.warehouse_id||x.warehouse_id)});
+  if(k==='transactions')return rows.filter(x=>allowed(x.warehouse_id));
+  if(k==='transaction_lines')return rows.filter(x=>{const tx=(V5_DB.transactions||[]).find(y=>y.id===x.transaction_id);return !!tx&&allowed(tx.warehouse_id)});
+  if(k==='stocktake_sessions')return rows.filter(x=>allowed(x.warehouse_id));
+  if(k==='stocktake_lines'||k==='stocktake_logs')return rows.filter(x=>{const ss=(V5_DB.stocktake_sessions||[]).find(y=>y.id===x.session_id);return !!ss&&allowed(ss.warehouse_id)});
+  if(k==='inventory_ledger'||k==='transaction_ledger')return rows.filter(x=>allowed(x.warehouse_id));
+  return rows;
+}
+function v5Find(k,id){return v5All(k).find(x=>x.id===id)}function v5Qty(id){return v5All('stock').filter(x=>x.item_id===id).reduce((n,x)=>n+Number(x.quantity||0),0)}function v5Audit(action,entity,id,payload){V5_DB.audit_logs.push({id:uid(),action,entity,entity_id:id,details:payload||{},created_at:new Date().toISOString()});v5Save()}
 function orshapCanPermission(key){const profile=state.session?.profile||{},role=String(state.session?.role||profile.role||'').toUpperCase();if(['SUPER_ADMIN','ADMIN','MANAGER','WAREHOUSE_MANAGER'].includes(role))return true;const custom=Array.isArray(profile.custom_permissions)?profile.custom_permissions:[];const roleRows=[...v5All('role_permissions'),...(window.orshapV12?.state?.remoteState?.role_permissions||[])];const rolePerms=roleRows.filter(x=>String(x.role_name||'').toUpperCase()===role).map(x=>x.permission_key);return custom.includes('*')||custom.includes(key)||rolePerms.includes(key)}
 function v5Field(label,name,value='',type='text',extra=''){return `<div class="field"><label>${esc(label)}</label><input name="${esc(name)}" type="${type}" value="${esc(value)}" ${extra}></div>`}
 function v5Select(label,name,opts,value=''){return `<div class="field"><label>${esc(label)}</label><select name="${esc(name)}"><option value="">${esc(T().select)}</option>${opts.map(o=>`<option value="${esc(o.id)}" ${o.id===value?'selected':''}>${esc(o.name||o.code)}</option>`).join('')}</select></div>`}
