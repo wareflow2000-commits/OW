@@ -57,3 +57,9 @@ test('transfer and return location selectors require an active area and a valid 
 test('return destination does not auto-select a department merely because only one exists', () => {
   assert.doesNotMatch(app, /ownerOptions\.some\(dep=>dep\.id===defaultOwnerId\)\?defaultOwnerId:\(ownerOptions\.length===1\?ownerOptions\[0\]\.id:''\)/);
 });
+
+test('both transaction movement UIs hide orphan shelves until a valid storage area is selected', () => {
+  assert.match(app, /mShelves=v5All\('shelves'\)\.filter\(v13TxShelfIsValid\)/);
+  assert.match(app, /validShelves=mShelves\.filter\(sh=>sh\.warehouse_id===wh&&!!area&&sh\.storage_area_id===area\)/);
+  assert.match(app, /validShelves=shelves\.filter\(sh=>sh\.warehouse_id===wh&&!!area&&sh\.storage_area_id===area/);
+});
