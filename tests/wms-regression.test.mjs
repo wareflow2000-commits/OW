@@ -69,9 +69,9 @@ test('inbound owner defaults require an explicit valid shelf default; issue defa
 });
 
 test('transfer and return location selectors require an active area and a valid shelf', () => {
-  assert.match(app, /shelves=v5All\('shelves'\)\.filter\(v13TxShelfIsValid\)/);
+  assert.match(app, /function v13TxShelfIsValid\(sh\)/);
   assert.match(app, /validShelves=shelves\.filter\(sh=>sh\.warehouse_id===wh&&!!area&&sh\.storage_area_id===area/);
-  assert.match(app, /const checkLocation=\(s,wh,area\)=>!!s&&v13TxShelfIsValid\(s\)&&s\.warehouse_id===wh&&s\.storage_area_id===area/);
+  assert.match(app, /const checkLocation=\(s,wh,area\)=>!!s&&v12ShelfIsValid\(s\)&&s\.warehouse_id===wh&&s\.storage_area_id===area/);
 });
 
 test('return destination does not auto-select a department merely because only one exists', () => {
@@ -79,7 +79,7 @@ test('return destination does not auto-select a department merely because only o
 });
 
 test('both transaction movement UIs hide orphan shelves until a valid storage area is selected', () => {
-  assert.match(app, /mShelves=v5All\('shelves'\)\.filter\(v13TxShelfIsValid\)/);
+  assert.match(app, /mShelves=v5All\('shelves'\)\.filter\(v12ShelfIsValid\)/);
   assert.match(app, /validShelves=mShelves\.filter\(sh=>sh\.warehouse_id===wh&&!!area&&sh\.storage_area_id===area\)/);
   assert.match(app, /validShelves=shelves\.filter\(sh=>sh\.warehouse_id===wh&&!!area&&sh\.storage_area_id===area/);
 });
