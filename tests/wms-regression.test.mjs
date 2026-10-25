@@ -272,3 +272,22 @@ test('stock movement reference is database-generated and retryable without fabri
   assert.ok(action.includes('v13-stock-movement-retry-reference'));
   assert.ok(!action.includes('Date.now()'), 'movement reference must not be generated in the browser');
 });
+
+test('stock movement dependent fields are handled by one canonical change listener', () => {
+  assert.equal(
+    (app.match(/if\(el\.closest\('#v13-stock-movement-form'\)&&el\.matches\('\[data-v13-movement-field\]'\)\)/g) || []).length,
+    1,
+    'the primary delegated change listener must own all movement field state updates'
+  );
+  assert.doesNotMatch(
+    app,
+    /if\(e\.target\.matches\('\[data-v13-movement-field\]'\)\)\{const f=document\.getElementById\('v13-stock-movement-form'\)/
+  );
+  const start = app.indexOf("if(el.closest('#v13-stock-movement-form')&&el.matches('[data-v13-movement-field]'))");
+  const end = app.indexOf("if(el.id==='v12-wid'", start);
+  assert.ok(start >= 0 && end > start, 'canonical movement change handler exists');
+  const source = app.slice(start, end);
+  assert.match(source, /state\.v13Movement=\{\.\.\.\(state\.v13Movement\|\|\{\}\),\.\.\.o\}/);
+  assert.match(source, /source_warehouse_id','source_area_id','source_shelf_id','destination_warehouse_id','destination_area_id','destination_shelf_id/);
+  assert.match(source, /state\.v13Movement\[prefix\+'_shelf_id'\]=''/);
+});
