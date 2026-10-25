@@ -183,3 +183,13 @@ test('owning-department selection preserves valid choices and clears invalid one
   assert.equal(sandbox.v13TxResolveOwnerSelection('item', 'shelf-single', 'ISSUE', 'warehouse', ''), 'owner-b');
   assert.equal(sandbox.v13TxResolveOwnerSelection('', 'shelf-single', 'ISSUE', 'warehouse', 'owner-b'), '');
 });
+
+test('transaction owner changes use the resolver and blank selections clear draft state', () => {
+  assert.ok(app.includes("administrative_department_id:o.draft_administrative_department_id||''"), 'blank owner selections must clear draft state');
+  assert.ok(!app.includes("administrative_department_id:o.draft_administrative_department_id||state.v12TxDraftLine?.administrative_department_id||''"), 'draft state must not restore a stale owner after the user clears it');
+  assert.ok(!app.includes("priorShelfDefaultOwner="), 'unused legacy owner fallback state must be removed');
+  assert.ok(app.includes("v13TxResolveOwnerSelection(itemId,state.v12TxDraftLine.shelf_id,state.v12TxMeta?.transaction_type,next,state.v12TxDraftLine.administrative_department_id)"), 'warehouse changes must preserve only a still-valid owner');
+  assert.ok(app.includes("v13TxResolveOwnerSelection(el.value,state.v12TxDraftLine.shelf_id,type,state.v12TxWarehouseId,state.v12TxDraftLine.administrative_department_id)"), 'item changes must preserve only a still-valid owner');
+  assert.ok(app.includes("v13TxResolveOwnerSelection(state.v12TxDraftLine.item_id,sh.id,state.v12TxMeta?.transaction_type,state.v12TxWarehouseId,state.v12TxDraftLine.administrative_department_id)"), 'shelf changes must preserve only a still-valid owner');
+  assert.ok(app.includes("v13TxResolveOwnerSelection(state.v12TxDraftLine.item_id,state.v12TxDraftLine.shelf_id,el.value,state.v12TxWarehouseId||'',state.v12TxDraftLine.administrative_department_id)"), 'transaction-type changes must preserve only a still-valid owner');
+});
