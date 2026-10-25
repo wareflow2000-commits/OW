@@ -392,7 +392,7 @@ test('stocktake counts queue offline and replay through the database count RPC',
 });
 
 test('stocktake database migration excludes unrelated catalogue items from zero-balance lines', () => {
-  const migration = fs.readFileSync(new URL('../supabase/migrations/20261025203000_orshap_stocktake_exclude_unassigned_catalogue_items_v13958.sql', import.meta.url), 'utf8');
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261025202940_orshap_stocktake_exclude_unassigned_catalogue_items_v13958.sql', import.meta.url), 'utf8');
   assert.ok(migration.includes('CREATE OR REPLACE FUNCTION public.populate_stocktake_session_lines_internal'));
   assert.ok(migration.includes('FROM public.stock AS st'));
   assert.ok(migration.includes('JOIN public.shelves AS sh'));
