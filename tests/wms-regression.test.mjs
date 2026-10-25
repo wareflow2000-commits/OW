@@ -208,3 +208,15 @@ test('stocktake settlement preserves owner dimension and rejects ambiguous owner
   assert.doesNotMatch(source, /ON CONFLICT \(item_id,shelf_id,batch_no\)/);
   assert.match(source, /'administrative_department_id',v_owner/);
 });
+
+test('live orphan GraphQL resolver ACL migration revokes client execution and verifies service_role', () => {
+  const migrationPath = new URL('../supabase/migrations/20261025110500_orshap_verify_orphan_graphql_resolver_acl_live_v13958.sql', import.meta.url);
+  const migration = fs.readFileSync(migrationPath, 'utf8');
+  assert.ok(migration.includes('REVOKE ALL PRIVILEGES ON FUNCTION graphql_public.graphql(text, text, jsonb, jsonb) FROM PUBLIC, anon, authenticated'));
+  assert.ok(migration.includes('GRANT EXECUTE ON FUNCTION graphql_public.graphql(text, text, jsonb, jsonb) TO service_role'));
+  assert.ok(migration.includes("has_function_privilege('anon', v_function, 'EXECUTE')"));
+  assert.ok(migration.includes("has_function_privilege('authenticated', v_function, 'EXECUTE')"));
+  assert.ok(migration.includes("has_function_privilege('service_role', v_function, 'EXECUTE')"));
+  assert.ok(migration.includes('GraphQL resolver ACL verification failed'));
+  assert.doesNotMatch(migration, /INSERT INTO|UPDATE public\.stock|DELETE FROM public\.stock|TRUNCATE/i);
+});
