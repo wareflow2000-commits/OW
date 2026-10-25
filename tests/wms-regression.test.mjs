@@ -112,7 +112,7 @@ test('shelf facility modal refreshes storage areas when its warehouse changes', 
   assert.ok(app.includes('v13SetOptions(areaSel,areas,selected'));
 });
 
-test('offline New Request never fabricates a transaction reference', () => {
+test('offline New Request requests a safe reference and uses a clearly marked local fallback only on connectivity failure', () => {
   const start = app.indexOf("if(a==='v12-new-tx'){");
   const end = app.indexOf("if(a==='v12-tx-retry-reference')", start);
   assert.ok(start >= 0 && end > start, 'canonical New Request handler exists');
@@ -120,6 +120,7 @@ test('offline New Request never fabricates a transaction reference', () => {
   assert.match(handler, /if\(!navigator\.onLine\)\{txModal\(\);say\(/);
   assert.doesNotMatch(handler, /reference_no\s*=\s*['"]OFF-/);
   assert.match(handler, /v12RequestTransactionReference\(state\.v12ReferenceRequestId\)/);
+  assert.match(app, /function v12SetLocalTransactionReference\(requestId\)/);
 });
 
 test('system boolean settings are normalized to canonical TRUE/FALSE values', () => {
@@ -316,7 +317,7 @@ test('outbox promotes a provisional voucher reference once and persists it befor
   const end = app.indexOf('\n  function say(', start);
   assert.ok(start >= 0 && end > start, 'outbox flush function exists');
   const source = app.slice(start, end);
-  assert.match(source, /\^LOCAL-\$\/i\.test\(String\(tx\.reference_no\|\|''\)\)/);
+  assert.ok(source.includes("if(/^LOCAL-/i.test(String(tx.reference_no||'')))"), 'only provisional local references are promoted');
   assert.match(source, /rpc\('next_transaction_reference',\{\}\)/);
   assert.ok(source.indexOf('outboxWrite(rows)') < source.indexOf("rpc('create_transaction_with_lines'"), 'official reference is persisted before the create RPC');
 });
