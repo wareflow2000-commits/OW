@@ -400,7 +400,7 @@ function c10CanViewSystemQty(session){
 }
 
 function c10Stocktake(){
-  c10Ensure();const t=T(),sessions=v5All('stocktake_sessions').slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))),active=state.c10SessionId?v5Find('stocktake_sessions',state.c10SessionId):null;
+  c10Ensure();const t=T(),sessions=v5All('stocktake_sessions').filter(s=>c10AccessibleWarehouse(s.warehouse_id)).slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))),activeCandidate=state.c10SessionId?v5Find('stocktake_sessions',state.c10SessionId):null,active=activeCandidate&&c10AccessibleWarehouse(activeCandidate.warehouse_id)?activeCandidate:null;
   if(active){
     const lines=v5All('stocktake_lines').filter(l=>l.session_id===active.id),canEdit=active.status==='IN_PROGRESS',canViewSystem=c10CanViewSystemQty(active);if(canEdit&&!lines.length&&state.c10AutoPopulateSessionId!==active.id){state.c10AutoPopulateSessionId=active.id;Promise.resolve().then(()=>handleAction('c10-populate-session:'+active.id)).catch(e=>{state.c10AutoPopulateSessionId=null;showToast(e.message||String(e),'error')})}else if(lines.length&&state.c10AutoPopulateSessionId===active.id){state.c10AutoPopulateSessionId=null;}
     const counted=lines.filter(l=>l.counted_qty!==null&&l.counted_qty!==undefined&&l.counted_qty!=='');const staleZeroLines=lines.filter(l=>Number(l.system_qty||0)===0&&!v5All('stock').some(st=>st.item_id===l.item_id&&st.shelf_id===l.shelf_id&&String(st.batch_no||'')===String(l.batch_no||'')));
