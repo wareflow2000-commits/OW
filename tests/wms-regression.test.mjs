@@ -432,3 +432,12 @@ test('new request modal keeps long item tables inside a scrollable viewport', ()
   assert.ok(css.includes('  .modal,.modal-wide {\n    display:flex;\n    flex-direction:column;'));
   assert.ok(css.includes('overflow-y:auto;'));
 });
+
+
+test('offline stocktake count queue is visible and retryable from the unified Sync screen', () => {
+  assert.ok(app.includes("source:'stocktake',table:'stocktake_lines',operation:'save_stocktake_count'"));
+  assert.ok(app.includes("'orshap_stocktake_count_queue_v1:'+sid"));
+  assert.ok(app.includes("'orshap_stocktake_count_queue_v1:'+sid])"), 'Retry errors must reset stocktake queue errors too');
+  assert.ok(app.includes('syncStocktakeCountQueue:flushStocktakeCountQueue'));
+  assert.ok(app.includes('await window.orshapV12?.syncStocktakeCountQueue?.()'), 'Sync Now must flush queued stocktake counts');
+});
