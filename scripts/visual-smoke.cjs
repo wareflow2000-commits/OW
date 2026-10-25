@@ -11,8 +11,11 @@ const { chromium } = require('playwright');
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
   const pageErrors = [];
+  const consoleErrors = [];
+  const failedRequests = [];
   page.on('pageerror', error => pageErrors.push(error.message));
-  page.on('console', msg => { if (msg.type() === 'error') pageErrors.push('console: ' + msg.text()); });
+  page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+  page.on('requestfailed', request => failedRequests.push({ url: request.url(), error: request.failure()?.errorText || 'unknown' }));
 
   try {
     await page.goto(baseURL, { waitUntil: 'domcontentloaded', timeout: 45000 });
@@ -191,8 +194,11 @@ const { chromium } = require('playwright');
     await page.unroute('**/rpc/next_transaction_reference*');
 
 
+    const unexpectedConsoleErrors = consoleErrors.filter(message => !/Failed to load resource: the server responded with a status of (401|403)\\b/.test(message));
     assert.deepEqual(pageErrors, [], 'No uncaught browser JavaScript errors are allowed during the visual smoke test.');
-    console.log(JSON.stringify({ status: 'passed', screenshots: fs.readdirSync(outDir), rtlDesktop, ltrDesktop, mobileLogin, mobileShell, pageErrors }, null, 2));
+    assert.deepEqual(unexpectedConsoleErrors, [], 'Unexpected browser console errors: ' + JSON.stringify(unexpectedConsoleErrors));
+    assert.deepEqual(failedRequests, [], 'Network requests must not fail: ' + JSON.stringify(failedRequests));
+    console.log(JSON.stringify({ status: 'passed', screenshots: fs.readdirSync(outDir), rtlDesktop, ltrDesktop, mobileLogin, mobileShell, pageErrors, expectedHttpErrors: consoleErrors, failedRequests }, null, 2));
   } finally {
     await browser.close();
   }
