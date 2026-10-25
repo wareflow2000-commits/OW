@@ -251,3 +251,12 @@ test('About page stat cards pass note and icon in the correct argument positions
   assert.ok(source.includes("stat(tx('لغات الواجهة','UI languages'),'2',tx('العربية والإنجليزية','Arabic and English'),'文')"));
   assert.doesNotMatch(source, /stat\([^)]*,'[ⓘ⛨文]'\)/);
 });
+
+test('transaction modal never fabricates a reference when metadata is absent', () => {
+  const start = app.indexOf('function txModal()');
+  const end = app.indexOf('async function v12RequestTransactionReference', start);
+  assert.ok(start >= 0 && end > start, 'transaction modal and safe reference requester exist');
+  const source = app.slice(start, end);
+  assert.ok(source.includes("state.v12TxMeta=state.v12TxMeta||{reference_no:'',transaction_type:'GRN'};"));
+  assert.doesNotMatch(source, /reference_no:\s*'REF-'\s*\+\s*Date\.now\(\)/);
+});
