@@ -89,7 +89,7 @@ const { chromium } = require('playwright');
     await page.waitForFunction(() => !!document.querySelector('#v12-tx-form [name="draft_shelf_id"]')?.value, { timeout: 5000 });
     assert.equal(await page.locator('#v12-tx-form').count(), 1, 'Changing the item must keep the form rendered.');
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-dashboard.png'), fullPage: true });
-    await page.locator('#modal-root [data-action="close-modal"]').click();
+    await page.locator('#modal-root [data-action="close-modal"]').last().click();
 
     await page.evaluate(() => {
       state.page = 'transactions';
@@ -100,7 +100,7 @@ const { chromium } = require('playwright');
     const transactionsRequestDebug = await page.evaluate(() => ({ page: state.page, hasModalState: !!state.modal, modalRootHasForm: !!document.querySelector('#modal-root #v12-tx-form'), appText: document.querySelector('#app')?.innerText?.slice(0, 250) || '' }));
     assert.ok(transactionsRequestDebug.modalRootHasForm, 'Transactions New Request button must open the form. Debug: ' + JSON.stringify({ transactionsRequestDebug, pageErrors }));
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-transactions.png'), fullPage: true });
-    await page.locator('#modal-root [data-action="close-modal"]').click();
+    await page.locator('#modal-root [data-action="close-modal"]').last().click();
     await page.unroute('**/rpc/next_transaction_reference*');
 
     await page.locator('.topbar [data-action="toggle-lang"]').click();
@@ -187,7 +187,7 @@ const { chromium } = require('playwright');
     const mobileRequestDebug = await page.evaluate(() => ({ hasModalState: !!state.modal, modalRootHasForm: !!document.querySelector('#modal-root #v12-tx-form') }));
     assert.ok(mobileRequestDebug.modalRootHasForm, 'Mobile New Request button must open the form. Debug: ' + JSON.stringify({ mobileRequestDebug, pageErrors }));
     await page.screenshot({ path: path.join(outDir, 'mobile-new-request.png'), fullPage: true });
-    await page.locator('#modal-root [data-action="close-modal"]').click();
+    await page.locator('#modal-root [data-action="close-modal"]').last().click();
     await page.unroute('**/rpc/next_transaction_reference*');
 
 
