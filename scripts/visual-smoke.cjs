@@ -12,6 +12,7 @@ const { chromium } = require('playwright');
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('console', msg => { if (msg.type() === 'error') pageErrors.push('console: ' + msg.text()); });
 
   try {
     await page.goto(baseURL, { waitUntil: 'domcontentloaded', timeout: 45000 });
@@ -75,7 +76,9 @@ const { chromium } = require('playwright');
       render();
     });
     await page.locator('.page [data-action="v12-new-tx"]').first().click();
-    await page.locator('#v12-tx-form').waitFor({ state: 'visible' });
+    await page.waitForTimeout(500);
+    const dashboardRequestDebug = await page.evaluate(() => ({ page: state.page, hasModalState: !!state.modal, modalRootHasForm: !!document.querySelector('#modal-root #v12-tx-form'), appText: document.querySelector('#app')?.innerText?.slice(0, 250) || '' }));
+    assert.ok(dashboardRequestDebug.modalRootHasForm, 'Dashboard New Request button must open the form. Debug: ' + JSON.stringify({ dashboardRequestDebug, pageErrors }));
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-dashboard.png'), fullPage: true });
     await page.locator('#modal-root [data-action="close-modal"]').click();
 
@@ -84,7 +87,9 @@ const { chromium } = require('playwright');
       render();
     });
     await page.locator('.page [data-action="v12-new-tx"]').first().click();
-    await page.locator('#v12-tx-form').waitFor({ state: 'visible' });
+    await page.waitForTimeout(500);
+    const transactionsRequestDebug = await page.evaluate(() => ({ page: state.page, hasModalState: !!state.modal, modalRootHasForm: !!document.querySelector('#modal-root #v12-tx-form'), appText: document.querySelector('#app')?.innerText?.slice(0, 250) || '' }));
+    assert.ok(transactionsRequestDebug.modalRootHasForm, 'Transactions New Request button must open the form. Debug: ' + JSON.stringify({ transactionsRequestDebug, pageErrors }));
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-transactions.png'), fullPage: true });
     await page.locator('#modal-root [data-action="close-modal"]').click();
     await page.unroute('**/rpc/next_transaction_reference*');
