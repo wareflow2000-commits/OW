@@ -536,7 +536,12 @@ test('cached warehouse-bound records are hidden outside the current assignment',
       stocktake_sessions:[{id:'a-session',warehouse_id:'wh-a'},{id:'b-session',warehouse_id:'wh-b'}],
       stocktake_lines:[{id:'a-count',session_id:'a-session'},{id:'b-count',session_id:'b-session'}],
       stocktake_logs:[],inventory_ledger:[{id:'a-ledger',warehouse_id:'wh-a'},{id:'b-ledger',warehouse_id:'wh-b'}],
-      transaction_ledger:[{id:'a-tledger',warehouse_id:'wh-a'},{id:'b-tledger',warehouse_id:'wh-b'}]
+      transaction_ledger:[{id:'a-tledger',warehouse_id:'wh-a'},{id:'b-tledger',warehouse_id:'wh-b'}],
+      transaction_audit:[{id:'a-audit',transaction_id:'a-tx'},{id:'b-audit',transaction_id:'b-tx'}],
+      audit_logs:[{id:'b-log',warehouse_id:'wh-b'},{id:'tx-log',details:{tx_id:'b-tx'}},{id:'global-log'}],
+      archive_movements:[{id:'a-archive',warehouse_id:'wh-a'},{id:'b-archive',warehouse_id:'wh-b'}],
+      archive_balances:[{id:'a-balance',warehouse_id:'wh-a'},{id:'b-balance',warehouse_id:'wh-b'}],
+      stock_transfers:[],stock_transfer_orders:[]
     }
   };
   vm.createContext(sandbox);
@@ -546,6 +551,9 @@ test('cached warehouse-bound records are hidden outside the current assignment',
   assert.deepEqual(Array.from(sandbox.v5All('transaction_lines'),x=>x.id),['a-line']);
   assert.deepEqual(Array.from(sandbox.v5All('stocktake_lines'),x=>x.id),['a-count']);
   assert.deepEqual(Array.from(sandbox.v5All('inventory_ledger'),x=>x.id),['a-ledger']);
+  assert.deepEqual(Array.from(sandbox.v5All('transaction_audit'),x=>x.id),['a-audit']);
+  assert.deepEqual(Array.from(sandbox.v5All('archive_movements'),x=>x.id),['a-archive']);
+  assert.deepEqual(Array.from(sandbox.v5All('audit_logs'),x=>x.id),['global-log'],'warehouse-specific and transaction-linked audit logs are hidden');
 });
 
 
