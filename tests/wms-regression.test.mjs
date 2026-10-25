@@ -330,3 +330,74 @@ test('provisional references never go directly to transaction creation', () => {
   assert.match(source, /if\(!navigator\.onLine\|\|\/\^LOCAL-\/i\.test\(tx\.reference_no\)\)/);
   assert.ok(source.indexOf('outboxEnqueue(payload)') < source.indexOf("rpc('create_transaction_with_lines'"), 'provisional references are queued before any direct create RPC');
 });
+
+test('stocktake scope never invents zero-balance catalogue items at every shelf', () => {
+  const start = app.indexOf('function c10BuildStocktakeLocationLines(');
+  const end = app.indexOf('\nfunction c10Settle(', start);
+  assert.ok(start >= 0 && end > start, 'stocktake location builder exists');
+  const sandbox = {
+    v5All: name => ({
+      items: [{id:'item-stocked',code:'A'}, {id:'item-other',code:'B'}],
+      shelves: [
+        {id:'shelf-a',warehouse_id:'wh-a',storage_area_id:'area-a',is_active:true},
+        {id:'shelf-b',warehouse_id:'wh-b',storage_area_id:'area-b',is_active:true}
+      ],
+      storage_areas: [
+        {id:'area-a',warehouse_id:'wh-a',is_active:true},
+        {id:'area-b',warehouse_id:'wh-b',is_active:true}
+      ],
+      stock: [{id:'st-1',item_id:'item-stocked',shelf_id:'shelf-a',quantity:4,batch_no:'B1'}]
+    })[name] || []
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(app.slice(start,end),sandbox);
+  const built=sandbox.c10BuildStocktakeLocationLines('wh-a',null);
+  assert.equal(built.lines.length,1);
+  assert.equal(built.lines[0].item_id,'item-stocked');
+  assert.equal(built.lines[0].system_qty,4);
+  assert.equal(sandbox.c10BuildStocktakeLocationLines('wh-a','area-b').lines.length,0,'cross-warehouse area filter must not widen or mis-scope the count');
+});
+
+test('issue smart warehouse suggestion moves away from an authorized warehouse with no stock', () => {
+  const start=app.indexOf('function v13TxSuggestedWarehouse(');
+  const end=app.indexOf('\nfunction v13TxOwnerChoices(',start);
+  assert.ok(start>=0&&end>start,'smart warehouse resolver exists');
+  const stockRows=[
+    {item_id:'item-1',shelf_id:'shelf-b',quantity:7},
+    {item_id:'item-1',shelf_id:'shelf-not-allowed',quantity:99}
+  ];
+  const sandbox={
+    v13TxAllowedWarehouses:()=>[{id:'wh-a'},{id:'wh-b'}],
+    v13TxStockRows:(itemId,warehouseId='')=>stockRows.filter(r=>r.item_id===itemId&&(!warehouseId||({'shelf-b':'wh-b','shelf-not-allowed':'wh-x'}[r.shelf_id]===warehouseId))),
+    v5Find:(table,id)=>table==='shelves'?({'shelf-b':{id:'shelf-b',warehouse_id:'wh-b'},'shelf-not-allowed':{id:'shelf-not-allowed',warehouse_id:'wh-x'}}[id]):null
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(app.slice(start,end),sandbox);
+  assert.equal(sandbox.v13TxSuggestedWarehouse('item-1','ISSUE','wh-a'),'wh-b');
+  assert.equal(sandbox.v13TxSuggestedWarehouse('item-1','GRN','wh-a'),'wh-a','inbound vouchers may retain a valid manual warehouse selection');
+});
+
+test('stocktake counts queue offline and replay through the database count RPC', () => {
+  assert.ok(app.includes('function stocktakeCountQueueKey(){'));
+  assert.ok(app.includes('function queueStocktakeCount(line,n){'));
+  assert.ok(app.includes("async function flushStocktakeCountQueue(){"));
+  assert.ok(app.includes("await rpc('save_stocktake_count',{p_line_id:op.line_id,p_counted_qty:op.counted_qty})"));
+  const start=app.indexOf('async function saveStocktakeCount(');
+  const end=app.indexOf('\n  window.orshapV12=',start);
+  const source=app.slice(start,end);
+  assert.ok(source.includes('if(!navigator.onLine){'));
+  assert.ok(source.includes('queueStocktakeCount(line,n)'));
+  assert.ok(source.includes('isUuid(line.id)||!isUuid(session.id)'));
+  assert.ok(app.includes('Promise.all([flushOutbox(),flushStocktakeCountQueue()])'));
+});
+
+test('stocktake database migration excludes unrelated catalogue items from zero-balance lines', () => {
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261025203000_orshap_stocktake_exclude_unassigned_catalogue_items_v13958.sql', import.meta.url), 'utf8');
+  assert.ok(migration.includes('CREATE OR REPLACE FUNCTION public.populate_stocktake_session_lines_internal'));
+  assert.ok(migration.includes('FROM public.stock AS st'));
+  assert.ok(migration.includes('JOIN public.shelves AS sh'));
+  assert.ok(migration.includes('JOIN public.storage_areas AS sa'));
+  assert.ok(migration.includes('No stock rows exist in the selected stocktake scope'));
+  assert.ok(!migration.includes('UNION ALL'));
+  assert.ok(!migration.includes('FROM public.items i JOIN public.shelves'));
+});
