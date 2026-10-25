@@ -218,6 +218,7 @@ test('live orphan GraphQL resolver ACL migration revokes client execution and ve
   assert.ok(migration.includes("has_function_privilege('authenticated', v_function, 'EXECUTE')"));
   assert.ok(migration.includes("has_function_privilege('service_role', v_function, 'EXECUTE')"));
   assert.ok(migration.includes('GraphQL resolver ACL verification failed'));
+  assert.ok(migration.includes('lacks owner privileges'), 'migration must fail clearly when the deployment role cannot alter the function ACL');
   assert.doesNotMatch(migration, /INSERT INTO|UPDATE public\.stock|DELETE FROM public\.stock|TRUNCATE/i);
 });
 
