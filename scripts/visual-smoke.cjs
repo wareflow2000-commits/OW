@@ -446,6 +446,33 @@ const { chromium } = require('playwright');
     await page.unroute('**/rpc/next_transaction_reference*');
 
 
+    // Verify stock-movement reference failure and retry using mocked RPC responses only.
+    await page.route('**/rpc/next_transaction_reference*', route => route.fulfill({
+      status: 403,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Blocked by visual smoke test; no database call is allowed.' })
+    }));
+    await page.evaluate(() => handleAction('v13-stock-movement'));
+    await page.locator('#modal-root #v13-stock-movement-form').waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const retry = document.querySelector('#modal-root [data-action="v13-stock-movement-retry-reference"]');
+      return !!retry && !retry.hidden && !retry.disabled;
+    }, { timeout: 5000 });
+    const failedMovementReference = await page.locator('#v13-stock-movement-form [name="reference_no"]').inputValue();
+    assert.equal(failedMovementReference, '', 'Reference failure must not fabricate a movement reference.');
+    await page.screenshot({ path: path.join(outDir, 'mobile-stock-movement-reference-retry.png'), fullPage: true });
+    await page.unroute('**/rpc/next_transaction_reference*');
+    await page.route('**/rpc/next_transaction_reference*', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify('SMOKE-REFERENCE-001')
+    }));
+    await page.locator('#modal-root [data-action="v13-stock-movement-retry-reference"]').click();
+    await page.waitForFunction(() => document.querySelector('#v13-stock-movement-form [name="reference_no"]')?.value === 'SMOKE-REFERENCE-001', { timeout: 5000 });
+    assert.equal(await page.locator('#v13-stock-movement-form [name="reference_no"]').inputValue(), 'SMOKE-REFERENCE-001', 'Retry must accept the database-generated reference response.');
+    await page.locator('#modal-root [data-action="close-modal"]').last().click();
+    await page.unroute('**/rpc/next_transaction_reference*');
+
     const unexpectedConsoleErrors = consoleErrors.filter(message => !/Failed to load resource: the server responded with a status of (401|403)\b/.test(message));
     assert.deepEqual(pageErrors, [], 'No uncaught browser JavaScript errors are allowed during the visual smoke test.');
     assert.deepEqual(unexpectedConsoleErrors, [], 'Unexpected browser console errors: ' + JSON.stringify(unexpectedConsoleErrors));
