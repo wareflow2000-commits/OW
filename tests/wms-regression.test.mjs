@@ -390,3 +390,14 @@ test('stocktake counts queue offline and replay through the database count RPC',
   assert.ok(source.includes('isUuid(line.id)||!isUuid(session.id)'));
   assert.ok(app.includes('Promise.all([flushOutbox(),flushStocktakeCountQueue()])'));
 });
+
+test('stocktake database migration excludes unrelated catalogue items from zero-balance lines', () => {
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261025203000_orshap_stocktake_exclude_unassigned_catalogue_items_v13958.sql', import.meta.url), 'utf8');
+  assert.ok(migration.includes('CREATE OR REPLACE FUNCTION public.populate_stocktake_session_lines_internal'));
+  assert.ok(migration.includes('FROM public.stock AS st'));
+  assert.ok(migration.includes('JOIN public.shelves AS sh'));
+  assert.ok(migration.includes('JOIN public.storage_areas AS sa'));
+  assert.ok(migration.includes('No stock rows exist in the selected stocktake scope'));
+  assert.ok(!migration.includes('UNION ALL'));
+  assert.ok(!migration.includes('FROM public.items i JOIN public.shelves'));
+});
