@@ -44,6 +44,50 @@ const { chromium } = require('playwright');
     assert.ok(rtlDesktop.documentWidth <= rtlDesktop.viewport + 1, 'Desktop RTL layout must not overflow horizontally.');
     assert.ok(rtlDesktop.sidebarLeft >= rtlDesktop.mainRight - 2, 'RTL desktop sidebar must be on the right of the main content.');
 
+    // Exercise the three reported runtime failures on the real browser-rendered app.
+    await page.evaluate(() => {
+      state.page = 'about';
+      render();
+    });
+    await page.locator('.page').waitFor({ state: 'visible' });
+    assert.match(await page.locator('.page').innerText(), /حول النظام|About/i, 'About page must render without a ReferenceError.');
+    await page.screenshot({ path: path.join(outDir, 'desktop-about-ar.png'), fullPage: true });
+
+    await page.evaluate(() => {
+      state.page = 'reports';
+      state.c10ReportKind = 'stock-summary';
+      state.c10ReportFilters = {};
+      render();
+    });
+    await page.locator('#c10-report-filter-form').waitFor({ state: 'visible' });
+    await page.screenshot({ path: path.join(outDir, 'desktop-reports-ar.png'), fullPage: true });
+
+    // Block reference-generation RPC in the smoke test so no production sequence is consumed.
+    await page.route('**/rpc/next_transaction_reference*', route => route.fulfill({
+      status: 403,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Blocked by visual smoke test; no database call is allowed.' })
+    }));
+    await page.evaluate(() => {
+      state.page = 'dashboard';
+      state.c10ReportKind = '';
+      render();
+    });
+    await page.locator('.page [data-action="v12-new-tx"]').first().click();
+    await page.locator('#v12-tx-form').waitFor({ state: 'visible' });
+    await page.screenshot({ path: path.join(outDir, 'desktop-new-request-dashboard.png'), fullPage: true });
+    await page.locator('#modal-root [data-action="close-modal"]').click();
+
+    await page.evaluate(() => {
+      state.page = 'transactions';
+      render();
+    });
+    await page.locator('.page [data-action="v12-new-tx"]').first().click();
+    await page.locator('#v12-tx-form').waitFor({ state: 'visible' });
+    await page.screenshot({ path: path.join(outDir, 'desktop-new-request-transactions.png'), fullPage: true });
+    await page.locator('#modal-root [data-action="close-modal"]').click();
+    await page.unroute('**/rpc/next_transaction_reference*');
+
     await page.locator('.topbar [data-action="toggle-lang"]').click();
     await page.waitForFunction(() => document.documentElement.dir === 'ltr');
     const ltrDesktop = await page.evaluate(() => {
