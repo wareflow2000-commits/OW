@@ -150,3 +150,12 @@ test('system boolean settings are normalized to canonical TRUE/FALSE values', ()
   assert.equal(queued[0][2].value, 'TRUE', 'queued persistence must use the canonical value');
   assert.equal(queued[1][2].value, 'FALSE', 'queued persistence must use the canonical value');
 });
+
+test('legacy shelf form requires explicit storage-area choice when multiple areas exist', () => {
+  const start = app.indexOf("const fac=el.closest('#v12-fac-form')");
+  const end = app.indexOf("if(el.closest('#v12-tx-form')", start);
+  assert.ok(start >= 0 && end > start, 'legacy facility dependency handler exists');
+  const source = app.slice(start, end);
+  assert.ok(source.includes("const areas=v5All('storage_areas').filter(a=>a.warehouse_id===wh&&a.is_active!==false),selected=areas.length===1?areas[0].id:''"));
+  assert.ok(source.includes("v13SetOptions(areaSel,areas,selected") && source.includes(",true);"), 'the select must keep an empty option for explicit choice');
+});
