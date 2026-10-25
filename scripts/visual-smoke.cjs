@@ -104,6 +104,36 @@ const { chromium } = require('playwright');
     assert.ok(transactionsRequestDebug.modalRootHasForm, 'Transactions New Request button must open the form. Debug: ' + JSON.stringify({ transactionsRequestDebug, pageErrors }));
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-transactions.png'), fullPage: true });
     await page.locator('#modal-root [data-action="close-modal"]').last().click();
+    // Exercise the active facilities shelf modal's warehouse -> storage-area dependency.
+    // Seed records exist only in this browser process; do not save or call any database RPC.
+    await page.evaluate(() => {
+      const first = V5_DB.warehouses.find(w => w.is_active !== false);
+      if (!first) throw new Error('No active local test warehouse is available.');
+      V5_DB.storage_areas = V5_DB.storage_areas.filter(a => a.warehouse_id !== first.id);
+      V5_DB.storage_areas.push(
+        { id: 'smoke-area-2', warehouse_id: first.id, code: 'AREA-SMOKE-2', name: 'Smoke Area 2', is_active: true },
+        { id: 'smoke-area-3', warehouse_id: first.id, code: 'AREA-SMOKE-3', name: 'Smoke Area 3', is_active: true }
+      );
+      state.v8FacilityWarehouseId = first.id;
+      state.page = 'facilities';
+      render();
+    });
+    await page.locator('[data-action="open-shelf"], [data-action="v8-open-shelf"]').first().click();
+    await page.locator('#v8-facility-form').waitFor({ state: 'visible' });
+    await page.evaluate(() => {
+      const warehouse = document.querySelector('#v8-facility-form select[name="warehouse_id"]');
+      if (!warehouse) throw new Error('Active shelf modal warehouse selector is missing.');
+      warehouse.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForFunction(() => {
+      const area = document.querySelector('#v8-facility-form select[name="storage_area_id"]');
+      return !!area && area.options.length === 3 && area.value === '';
+    }, { timeout: 5000 });
+    const areaOptions = await page.locator('#v8-facility-form select[name="storage_area_id"] option').evaluateAll(options => options.map(o => o.value));
+    assert.deepEqual(areaOptions.sort(), ['', 'smoke-area-2', 'smoke-area-3'].sort(), 'Active shelf modal must list only areas for its selected warehouse and require explicit choice when multiple exist.');
+    await page.screenshot({ path: path.join(outDir, 'desktop-shelf-area-dependency.png'), fullPage: true });
+    await page.locator('#modal-root [data-action="close-modal"]').last().click();
+
     await page.unroute('**/rpc/next_transaction_reference*');
 
     await page.locator('.topbar [data-action="toggle-lang"]').click();
