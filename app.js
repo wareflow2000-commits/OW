@@ -1576,7 +1576,6 @@ handleAction=async function(a){
   return v135OldHandleAction(a)
 };
 document.addEventListener('change',async e=>{
-  if(e.target.matches('[data-v13-movement-field]')){const f=document.getElementById('v13-stock-movement-form');if(f){state.v13Movement={...(state.v13Movement||{}),...Object.fromEntries(new FormData(f).entries())};if(['source_warehouse_id','source_area_id','destination_warehouse_id','destination_area_id','movement_type'].includes(e.target.name))v13StockMovementModal()}return}
   if(e.target.id==='v135-import-file'){try{await v135LoadImportFile(e.target.files?.[0])}catch(err){showToast(err.message||String(err),'error')}}
   if(e.target.id==='v135-import-entity'&&state.v135Import){state.v135Import.entity=e.target.value;state.v135Import.mapping={};for(const f of v135ImportFields[state.v135Import.entity]||[])state.v135Import.mapping[f]=state.v135Import.headers.find(h=>v135AutoMap(h,f))||'';v135BuildImportModal()}
   if(e.target.id==='v135-qr-kind')return v135QrManager(e.target.value);
