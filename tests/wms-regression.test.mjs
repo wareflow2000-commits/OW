@@ -452,3 +452,126 @@ test('stale out-of-scope zero-balance stocktake lines stay blocked even after th
   assert.ok(expression.includes('Number(l.system_qty||0)===0'));
   assert.ok(expression.includes("st.item_id===l.item_id&&st.shelf_id===l.shelf_id"));
 });
+
+
+test('explicit warehouse assignments constrain administrator dropdown scope', () => {
+  const start=app.indexOf('function c10AccessibleWarehouse(');
+  const end=app.indexOf('\nfunction c10Audit(',start);
+  assert.ok(start>=0&&end>start,'warehouse access predicate exists');
+  const sandbox={state:{session:{id:'admin-1',role:'SUPER_ADMIN',profile:{role:'SUPER_ADMIN',assigned_warehouse_ids:['wh-a']}}}};
+  vm.createContext(sandbox);
+  vm.runInContext(app.slice(start,end),sandbox);
+  assert.equal(sandbox.c10AccessibleWarehouse('wh-a'),true,'explicitly assigned warehouse remains accessible');
+  assert.equal(sandbox.c10AccessibleWarehouse('wh-b'),false,'super admin assignment must not be bypassed');
+  sandbox.state.session.profile.assigned_warehouse_ids=[];
+  assert.equal(sandbox.c10AccessibleWarehouse('wh-b'),true,'unrestricted admin with no assignment list retains global access');
+  sandbox.state.session={id:'manager-1',role:'MANAGER',profile:{role:'MANAGER',assigned_warehouse_ids:[]}};
+  assert.equal(sandbox.c10AccessibleWarehouse('wh-a'),false,'manager without an explicit assignment is not implicitly global');
+  sandbox.state.session={id:'user-1',role:'USER',profile:{role:'USER',assigned_warehouse_ids:[]}};
+  assert.equal(sandbox.c10AccessibleWarehouse('wh-a'),false,'non-admin without assignments has no warehouse access');
+});
+
+test('transaction warehouse dropdown respects explicit administrator assignment', () => {
+  const helperStart=app.indexOf('function c10AccessibleWarehouse(');
+  const helperEnd=app.indexOf('\nfunction c10Audit(',helperStart);
+  const dropdownStart=app.indexOf('function v13TxAllowedWarehouses()');
+  const dropdownEnd=app.indexOf('\nfunction v13TxShelfIsValid',dropdownStart);
+  assert.ok(helperStart>=0&&helperEnd>helperStart,'warehouse access predicate exists');
+  assert.ok(dropdownStart>=0&&dropdownEnd>dropdownStart,'transaction warehouse resolver exists');
+  const sandbox={state:{session:{id:'admin-1',role:'SUPER_ADMIN',profile:{role:'SUPER_ADMIN',assigned_warehouse_ids:['wh-a']}}},v5All:(table)=>table==='warehouses'?[{id:'wh-a'},{id:'wh-b'}]:[]};
+  vm.createContext(sandbox);
+  vm.runInContext(app.slice(helperStart,helperEnd)+'\n'+app.slice(dropdownStart,dropdownEnd),sandbox);
+  assert.deepEqual(Array.from(sandbox.v13TxAllowedWarehouses(),w=>w.id),['wh-a']);
+});
+
+test('stocktake session list and active session are restricted to accessible warehouses', () => {
+  const start=app.indexOf('function c10Stocktake()');
+  const end=app.indexOf('\nfunction c10BuildStocktakeLocationLines',start);
+  assert.ok(start>=0&&end>start,'stocktake renderer exists');
+  const source=app.slice(start,end);
+  assert.match(source,/sessions=v5All\('stocktake_sessions'\)\.filter\(s=>c10AccessibleWarehouse\(s\.warehouse_id\)\)/);
+  assert.match(source,/active=activeCandidate&&c10AccessibleWarehouse\(activeCandidate\.warehouse_id\)\?activeCandidate:null/);
+});
+
+test('offline transaction outbox permits only receipts and issues; stocktake uses its own queue', () => {
+  assert.match(app, /function v13OfflineTransactionAllowed\(type\)\{return \['GRN','ISSUE'\]/);
+  assert.match(app, /const offlineEligible=v13OfflineTransactionAllowed\(tx\.transaction_type\)/);
+  assert.match(app, /Offline mode supports goods receipts, issues, and stocktake counts only/);
+  assert.match(app, /!v13OfflineTransactionAllowed\(tx\.transaction_type\)/);
+  assert.match(app, /function outboxOverlay\(\)[\s\S]*?c10AccessibleWarehouse\(tx\.warehouse_id\)/);
+  assert.match(app, /orshap_stocktake_count_queue_v1/);
+});
+
+test('warehouse scope migration hardens RLS reads and SECURITY DEFINER write paths', () => {
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261025214500_orshap_enforce_assigned_warehouse_scope_v13958.sql', import.meta.url), 'utf8');
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.current_user_can_access_warehouse/);
+  assert.match(migration, /trg_enforce_transaction_warehouse_scope/);
+  assert.match(migration, /trg_enforce_stocktake_warehouse_scope/);
+  assert.match(migration, /DROP POLICY IF EXISTS transactions_permission_select/);
+  assert.match(migration, /DROP POLICY IF EXISTS stocktake_sessions_permission_select/);
+  assert.match(migration, /DROP POLICY IF EXISTS stock_authenticated_read/);
+  assert.match(migration, /current_user_can_create_warehouse/);
+  assert.match(migration, /WITH CHECK \(public\.current_user_has_permission\('action:facility:manage'\) AND public\.current_user_can_access_warehouse\(warehouse_id\)\)/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.list_stocktake_lines_secure/);
+  assert.match(migration, /WHERE public\.current_user_can_access_warehouse\(s\.warehouse_id\)/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.get_stock_summary_by_storage_area/);
+  assert.match(migration, /Report warehouse is outside the current user assigned scope/);
+  assert.match(migration, /DROP POLICY IF EXISTS transaction_audit_select_policy/);
+  assert.match(migration, /DROP POLICY IF EXISTS audit_logs_select_policy/);
+  assert.match(migration, /DROP POLICY IF EXISTS archive_movements_active_read/);
+  assert.match(migration, /archive_movements_manager_insert[\s\S]*?current_user_can_access_warehouse\(warehouse_id\)/);
+  assert.match(migration, /DROP POLICY IF EXISTS stock_transfers_select_assigned/);
+});
+
+
+test('cached warehouse-bound records are hidden outside the current assignment', () => {
+  const helperStart=app.indexOf('function c10AccessibleWarehouse(');
+  const helperEnd=app.indexOf('function v13OfflineTransactionAllowed',helperStart);
+  const allStart=app.indexOf('function v5All(k){');
+  const allEnd=app.indexOf('\nfunction v5Find(',allStart);
+  assert.ok(helperStart>=0&&helperEnd>helperStart&&allStart>=0&&allEnd>allStart);
+  const sandbox={
+    state:{session:{id:'admin-1',role:'SUPER_ADMIN',profile:{role:'SUPER_ADMIN',assigned_warehouse_ids:['wh-a']}}},
+    V5_DB:{
+      warehouses:[{id:'wh-a'},{id:'wh-b'}],
+      storage_areas:[{id:'a-area',warehouse_id:'wh-a'},{id:'b-area',warehouse_id:'wh-b'}],
+      shelves:[{id:'a-shelf',warehouse_id:'wh-a'},{id:'b-shelf',warehouse_id:'wh-b'}],
+      stock:[{id:'a-stock',shelf_id:'a-shelf'},{id:'b-stock',shelf_id:'b-shelf'}],
+      transactions:[{id:'a-tx',warehouse_id:'wh-a'},{id:'b-tx',warehouse_id:'wh-b'}],
+      transaction_lines:[{id:'a-line',transaction_id:'a-tx'},{id:'b-line',transaction_id:'b-tx'}],
+      stocktake_sessions:[{id:'a-session',warehouse_id:'wh-a'},{id:'b-session',warehouse_id:'wh-b'}],
+      stocktake_lines:[{id:'a-count',session_id:'a-session'},{id:'b-count',session_id:'b-session'}],
+      stocktake_logs:[],inventory_ledger:[{id:'a-ledger',warehouse_id:'wh-a'},{id:'b-ledger',warehouse_id:'wh-b'}],
+      transaction_ledger:[{id:'a-tledger',warehouse_id:'wh-a'},{id:'b-tledger',warehouse_id:'wh-b'}],
+      transaction_audit:[{id:'a-audit',transaction_id:'a-tx'},{id:'b-audit',transaction_id:'b-tx'}],
+      audit_logs:[{id:'b-log',warehouse_id:'wh-b'},{id:'tx-log',details:{tx_id:'b-tx'}},{id:'global-log'}],
+      archive_movements:[{id:'a-archive',warehouse_id:'wh-a'},{id:'b-archive',warehouse_id:'wh-b'}],
+      archive_balances:[{id:'a-balance',warehouse_id:'wh-a'},{id:'b-balance',warehouse_id:'wh-b'}],
+      stock_transfers:[],stock_transfer_orders:[]
+    }
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(app.slice(helperStart,helperEnd)+'\n'+app.slice(allStart,allEnd),sandbox);
+  assert.deepEqual(Array.from(sandbox.v5All('warehouses'),x=>x.id),['wh-a']);
+  assert.deepEqual(Array.from(sandbox.v5All('transactions'),x=>x.id),['a-tx']);
+  assert.deepEqual(Array.from(sandbox.v5All('transaction_lines'),x=>x.id),['a-line']);
+  assert.deepEqual(Array.from(sandbox.v5All('stocktake_lines'),x=>x.id),['a-count']);
+  assert.deepEqual(Array.from(sandbox.v5All('inventory_ledger'),x=>x.id),['a-ledger']);
+  assert.deepEqual(Array.from(sandbox.v5All('transaction_audit'),x=>x.id),['a-audit']);
+  assert.deepEqual(Array.from(sandbox.v5All('archive_movements'),x=>x.id),['a-archive']);
+  assert.deepEqual(Array.from(sandbox.v5All('audit_logs'),x=>x.id),['global-log'],'warehouse-specific and transaction-linked audit logs are hidden');
+});
+
+
+test('profile refresh purges assigned-admin cache scope without restricting the global item catalogue', () => {
+  const start=app.indexOf('const current=V12.remoteState.profiles.find');
+  const end=app.indexOf('    outboxOverlay();',start);
+  assert.ok(start>=0&&end>start,'profile refresh and cache purge block exists');
+  const source=app.slice(start,end);
+  assert.match(source,/if\(assigned\.length\)/);
+  assert.match(source,/for\(const db of \[V5_DB,V12\.remoteState\]\)/,'both local and remote in-memory mirrors are purged');
+  assert.match(source,/db\.transactions=\(db\.transactions\|\|\[\]\)\.filter/);
+  assert.match(source,/db\.stocktake_sessions=\(db\.stocktake_sessions\|\|\[\]\)\.filter/);
+  assert.doesNotMatch(source,/db\.items\s*=\s*db\.items\.filter/,'item master must remain warehouse-independent');
+  assert.match(source,/else if\(!admin\)/,'unassigned non-admin cache is purged');
+});
