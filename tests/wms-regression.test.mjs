@@ -65,6 +65,6 @@ test('both transaction movement UIs hide orphan shelves until a valid storage ar
 });
 
 test('shelf facility modal refreshes storage areas when its warehouse changes', () => {
-  assert.match(app, /const v8fac=el\\.closest\\('#v8-facility-form'\\);if\\(v8fac&&el\\.name==='warehouse_id'\\)/);
-  assert.match(app, /v13SetOptions\\(areaSel,areas,selected/);
+  assert.ok(app.includes("const v8fac=el.closest('#v8-facility-form');if(v8fac&&el.name==='warehouse_id')"));
+  assert.ok(app.includes('v13SetOptions(areaSel,areas,selected'));
 });
