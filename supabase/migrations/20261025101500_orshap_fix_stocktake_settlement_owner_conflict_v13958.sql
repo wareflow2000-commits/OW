@@ -44,6 +44,18 @@ BEGIN
     RAISE EXCEPTION 'One or more selected lines are missing, belong to another session, or are already settled';
   END IF;
 
+  -- A non-zero variance must not race with another stock movement creating a
+  -- second owner row after the owner check. Settlement is rare; briefly serialize
+  -- stock writes only when at least one selected line changes quantity.
+  IF EXISTS (
+    SELECT 1 FROM public.stocktake_lines l
+    WHERE l.id = ANY(p_line_ids)
+      AND l.session_id = p_session_id
+      AND abs(COALESCE(l.variance, l.counted_qty - COALESCE(l.system_qty,0))) > 0
+  ) THEN
+    LOCK TABLE public.stock IN SHARE ROW EXCLUSIVE MODE;
+  END IF;
+
   FOR v_line IN
     SELECT l.* FROM public.stocktake_lines l
     WHERE l.id=ANY(p_line_ids) AND l.session_id=p_session_id
