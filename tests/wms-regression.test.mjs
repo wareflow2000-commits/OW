@@ -225,6 +225,7 @@ test('GraphQL ACL migration checks PUBLIC through ACL expansion rather than trea
   const migrationPath = new URL('../supabase/migrations/20261025110500_orshap_verify_orphan_graphql_resolver_acl_live_v13958.sql', import.meta.url);
   const migration = fs.readFileSync(migrationPath, 'utf8');
   assert.ok(migration.includes('aclexplode(COALESCE(p.proacl, acldefault'));
+  assert.ok(migration.includes('lacks owner privileges'), 'migration must fail clearly when the deployment role cannot alter the function ACL');
   assert.ok(migration.includes('acl.grantee = 0'));
   assert.doesNotMatch(migration, /has_function_privilege\(['"]public['"]/i);
 });
