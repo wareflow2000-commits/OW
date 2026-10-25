@@ -557,7 +557,6 @@ function c10Sync(){c10Ensure();const all=c10SyncQueueSnapshot(),pending=all.filt
 function c10RetryErrors(){const sid=String(state.session?.id||'anonymous');let n=0;for(const key of ['orshap_master_outbox_v1:'+sid,'orshap_tx_outbox_v1:'+sid]){try{const q=JSON.parse(localStorage.getItem(key)||'[]');if(!Array.isArray(q))continue;for(const op of q){if(op.status==='ERROR'){op.status='PENDING';op.last_error=null;n++}}localStorage.setItem(key,JSON.stringify(q))}catch(e){console.warn('Could not prepare queue retry',key,e)}}if(n){toast(state.lang==='ar'?`تمت إعادة ${n} عملية إلى قائمة المحاولة`:`${n} operation(s) queued for retry`,'success');c10DoSync()}else toast(state.lang==='ar'?'لا توجد أخطاء قابلة لإعادة المحاولة تلقائياً. التعارضات والسجل القديم تحتاج معالجة يدوية.':'No retryable errors. Conflicts and legacy queue entries require manual handling.','warning')}
 async function c10DoSync(){if(!navigator.onLine){toast(state.lang==='ar'?'لا يوجد اتصال؛ ستبقى المسودات محفوظة محلياً':'Offline: drafts remain safely queued','warning');return}if(!state.session?.id||state.offlineSession){toast(state.lang==='ar'?'سجّل الدخول عبر الإنترنت أولاً لمزامنة العمليات':'Sign in online first to sync queued work','warning');return}try{loadingBar(true);await window.orshapV12?.syncOfflineMasterQueue?.();await window.orshapOutbox?.retry?.();await window.orshapV12?.refresh?.();render();const left=c10SyncQueueSnapshot().filter(x=>x.status!=='SYNCED');toast(left.length?(state.lang==='ar'?`اكتملت محاولة المزامنة؛ بقيت ${left.length} عملية للمراجعة`:`Sync attempted; ${left.length} operation(s) still need review`):(state.lang==='ar'?'اكتملت المزامنة':'Synchronization completed'),left.length?'warning':'success')}catch(e){toast((state.lang==='ar'?'فشلت المزامنة: ':'Sync failed: ')+(e?.message||String(e)),'error')}finally{loadingBar(false)}}
 
-window.orshapTxChoices=Object.freeze({allowedWarehouses:v13TxAllowedWarehouses,shelfIsValid:v13TxShelfIsValid,stockRows:v13TxStockRows,itemChoices:v13TxItemChoices,shelfChoices:v13TxShelfChoices,shelfLabel:v13TxShelfLabel,ownerChoices:v13TxOwnerChoices,batchChoices:v13TxBatchChoices});
 const __c10PrevDashboard=dashboard,__c10PrevStocktake=stocktake,__c10PrevReports=reports;
 dashboard=c10Dashboard;stocktake=c10Stocktake;reports=c10Reports;
 const __c10PrevAppContent=appContent;
@@ -1726,6 +1725,7 @@ document.addEventListener('change',e=>{
 
 // Theme preferences are presentation-only and never mutate inventory data.
 applyTheme(false);try{render()}catch(e){console.error(e)}
+window.orshapTxChoices=Object.freeze({allowedWarehouses:v13TxAllowedWarehouses,shelfIsValid:v13TxShelfIsValid,stockRows:v13TxStockRows,itemChoices:v13TxItemChoices,shelfChoices:v13TxShelfChoices,shelfLabel:v13TxShelfLabel,ownerChoices:v13TxOwnerChoices,batchChoices:v13TxBatchChoices});
 })();
 
 
