@@ -1037,7 +1037,7 @@ try{render()}catch(e){console.error('V10 final render failed',e)}
   function v12Translate(ar,en){return state.lang==='ar'?ar:en}
   function v12WarehouseName(id){return v5Find('warehouses',id)?.name||'—'}
 function txModal(){
-    const t=T();state.v12TxLines=state.v12TxLines||[];state.v12TxDraftLine=state.v12TxDraftLine||{item_id:'',shelf_id:'',quantity:1,batch_no:'',expiry_date:''};state.v12TxMeta=state.v12TxMeta||{reference_no:'REF-'+Date.now(),transaction_type:'GRN'};if(typeof state.v12TxWarehouseId!=='string')state.v12TxWarehouseId='';
+    const t=T();state.v12TxLines=state.v12TxLines||[];state.v12TxDraftLine=state.v12TxDraftLine||{item_id:'',shelf_id:'',quantity:1,batch_no:'',expiry_date:''};state.v12TxMeta=state.v12TxMeta||{reference_no:'',transaction_type:'GRN'};if(typeof state.v12TxWarehouseId!=='string')state.v12TxWarehouseId='';
     const type=String(state.v12TxMeta.transaction_type||'GRN'),isMovement=['TRANSFER','RETURN_TO_LOCATION','RETURN_TO_SUPPLIER','RETURN_FROM_USAGE','RETURN_FROM_CUSTOMER'].includes(type),supplierMode=type==='RETURN_TO_SUPPLIER',inboundReturnMode=['RETURN_FROM_USAGE','RETURN_FROM_CUSTOMER'].includes(type),locationPrefix=(type==='TRANSFER'||supplierMode)?'source':'destination';
     const md=state.v13NewTxMovement||{};state.v13NewTxMovement=md;
     const mWarehouses=v12AllowedWarehouses(),mAreas=v5All('storage_areas').filter(a=>a.is_active!==false),mShelves=v5All('shelves').filter(v12ShelfIsValid);
