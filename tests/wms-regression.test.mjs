@@ -564,8 +564,9 @@ test('profile refresh purges assigned-admin cache scope without restricting the 
   assert.ok(start>=0&&end>start,'profile refresh and cache purge block exists');
   const source=app.slice(start,end);
   assert.match(source,/if\(assigned\.length\)/);
-  assert.match(source,/V5_DB\.transactions=V5_DB\.transactions\.filter/);
-  assert.match(source,/V5_DB\.stocktake_sessions=V5_DB\.stocktake_sessions\.filter/);
-  assert.doesNotMatch(source,/V5_DB\.items\s*=\s*V5_DB\.items\.filter/,'item master must remain warehouse-independent');
+  assert.match(source,/for\(const db of \[V5_DB,V12\.remoteState\]\)/,'both local and remote in-memory mirrors are purged');
+  assert.match(source,/db\.transactions=\(db\.transactions\|\|\[\]\)\.filter/);
+  assert.match(source,/db\.stocktake_sessions=\(db\.stocktake_sessions\|\|\[\]\)\.filter/);
+  assert.doesNotMatch(source,/db\.items\s*=\s*db\.items\.filter/,'item master must remain warehouse-independent');
   assert.match(source,/else if\(!admin\)/,'unassigned non-admin cache is purged');
 });
