@@ -304,3 +304,19 @@ test('legacy offline sync RPCs are retired until they respect transaction approv
     assert.doesNotMatch(source, /process_sync_batch(?:_v2)?\s*\(/, file + ' must not depend on the retired RPC');
   }
 });
+
+test('offline voucher reference falls back to a clearly provisional local ID', () => {
+  assert.match(app, /function v12SetLocalTransactionReference\(requestId\)/);
+  assert.match(app, /const reference='LOCAL-'\+uid\(\)/);
+  assert.match(app, /if\(!navigator\.onLine\)\{\s*if\(v12SetLocalTransactionReference\(requestId\)\)/);
+});
+
+test('outbox promotes a provisional voucher reference once and persists it before transaction creation', () => {
+  const start = app.indexOf('async function flushOutbox()');
+  const end = app.indexOf('\n  function say(', start);
+  assert.ok(start >= 0 && end > start, 'outbox flush function exists');
+  const source = app.slice(start, end);
+  assert.match(source, /\^LOCAL-\$\/i\.test\(String\(tx\.reference_no\|\|''\)\)/);
+  assert.match(source, /rpc\('next_transaction_reference',\{\}\)/);
+  assert.ok(source.indexOf('outboxWrite(rows)') < source.indexOf("rpc('create_transaction_with_lines'"), 'official reference is persisted before the create RPC');
+});
