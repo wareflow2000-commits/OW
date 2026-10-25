@@ -240,3 +240,16 @@ test('application uses canonical storage-area reporting and retires legacy zone-
   assert.match(migration, /DROP FUNCTION IF EXISTS public\.get_stock_summary_report_internal\(timestamptz, timestamptz, uuid, uuid, uuid\)/);
   assert.doesNotMatch(migration, /DELETE FROM|TRUNCATE|UPDATE public\.stock/i);
 });
+
+test('GraphQL ACL migration revokes client execution and verifies PUBLIC via ACL expansion', () => {
+  const sql = fs.readFileSync(
+    new URL('../supabase/migrations/20261025123500_orshap_revoke_client_graphql_resolver_v13958.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(sql, /REVOKE ALL PRIVILEGES[\\s\\S]{0,180}FROM PUBLIC, anon, authenticated/);
+  assert.match(sql, /GRANT EXECUTE[\\s\\S]{0,150}TO service_role/);
+  assert.match(sql, /has_function_privilege\\('anon', v_oid, 'EXECUTE'\\)/);
+  assert.match(sql, /has_function_privilege\\('authenticated', v_oid, 'EXECUTE'\\)/);
+  assert.match(sql, /acl\\.grantee = 0[\\s\\S]{0,100}acl\\.privilege_type = 'EXECUTE'/);
+  assert.doesNotMatch(sql, /has_function_privilege\\('public'/i);
+});
