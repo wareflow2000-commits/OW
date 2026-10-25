@@ -224,8 +224,7 @@ BEGIN
   END LOOP;
   RETURN jsonb_build_object('success',true,'processed',v_processed,'session_id',p_session_id);
 END;
-$function$
-
+$function$;
 
 COMMENT ON FUNCTION public.process_stocktake_settlement_direct_internal_with_direction(uuid,uuid[],text,jsonb)
 IS 'Owner-safe stocktake settlement: rejects ambiguous multi-owner variances and writes stock using the owner-aware unique key.';
