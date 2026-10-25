@@ -39,32 +39,52 @@ The visual review found and corrected one real UI defect: the mobile bottom navi
 
 The initial review's PR #4 draft gate is retained only as historical context. The current release decision and unresolved blockers are recorded in the continuation audit below.
 
-## Continuation audit — 2026-10-25 (live state, supersedes stale counts above)
+## Continuation audit — 2026-10-25 (latest live state)
 
-### GitHub and browser verification
-- Main contains the merged fixes for settings boolean normalization, legacy shelf storage-area selection, transaction review/save-failure browser coverage, and migration-version reconciliation.
-- Latest relevant PR workflows passed regression tests, JavaScript syntax, offline shell/RPC/layout/CSS checks, and Playwright desktop/mobile smoke tests. The browser tests intercept transaction writes; they are not live database transaction tests.
-- The current main app source contains no `zone_id` or `section_id` references. The dead `reportsV12()` caller was removed.
+### GitHub, CI and browser verification
+- Merged PR #18 (settings boolean normalization), PR #19 (legacy shelf area selection), PR #42 (database-generated stock-movement references and retry), and PR #43 (correct dashboard New Request screenshot evidence).
+- PR #42 and PR #43 both passed the WMS regression workflow and the syntax/visual workflow on their tested PR heads. The tested file contents are present on `main`. The GitHub connector returned no separate workflow runs/statuses for the squash merge commits themselves, so do not describe this as a distinct post-merge CI run.
+- Playwright Chromium screenshots confirm the New Request form opens from both the dashboard and transactions page, and the stock-movement form remains open with a blank reference and retry action after the mocked reference RPC fails. The browser test intercepts transaction RPC writes; no inventory write is made by the browser smoke suite.
+- Main no longer contains the browser-generated `MOV-${Date.now()}` reference fallback. Stock movement reference generation uses `next_transaction_reference`; failure leaves the form open and exposes retry.
+- Main uses the canonical storage-area report filter. The current source has no `zone_id` or `section_id` references in `app.js`; legacy report RPCs were retired in migration `20261025102208`.
 
-### Live database reconciliation (read-only, after the report-function migration)
-- `stock`: 1 row, total quantity 99.
-- `inventory_ledger`: 2 rows, sum of `delta` = 99.
-- `transaction_ledger`: 2 rows, sum of `quantity` = 99.
-- Composite-key comparison of stock versus inventory-ledger quantities: 0 mismatches.
-- Approved transactions lacking an approved transaction-ledger row: 0.
-- Shelf/storage-area and stock/transaction-line location consistency checks: 0 mismatches.
-- No rollback-smoke records exist. The attempted direct SQL transaction-test batch was blocked by the tool's safety controls before execution; no transaction test writes were performed in this continuation.
+### Live Supabase transaction tests — same database, forced rollback
+These were executed against the connected Supabase database inside explicit transactions/subtransactions. Each test raised a deliberate rollback sentinel after collecting its result. Read-only checks after each run confirmed no test transaction, stock, transfer, stocktake, or sync-log rows remained, and the baseline stock stayed at 99.
 
-### Legacy report API retirement
-- Applied migration version `20261025102208` removes `public.get_stock_summary_report` and `public.get_stock_summary_report_internal`, which exposed obsolete zone/section parameters.
-- Verified after application that only the canonical `get_stock_summary_by_storage_area` report RPC remains among those names and is executable by `authenticated`.
-- No stock, transaction, ledger, or historical records were modified by this migration.
+| Test | Observed result inside rollback transaction | Result |
+|---|---|---|
+| GRN create and approve | Generated reference; transaction APPROVED; stock rose 99→100; one inventory-ledger and one transaction-ledger row for the test batch | PASS |
+| Duplicate transaction create/approval | Repeated create returned `already_created=true`; second approval was rejected as already approved; ledger row counts stayed at one each | PASS |
+| Over-issue | Issue for 100 against stock 99 was rejected with `Insufficient stock`; balance stayed 99 | PASS |
+| Competing issue requests | Two pending issues of 60 against 99: first approved to 39; second remained pending and was rejected for insufficient stock; only first had a transaction-ledger row | PASS for serialized posting invariant; **not a true simultaneous two-session race test** |
+| Supplier return | Request did not change stock; replay returned `already_created=true`; approval reduced stock 99→97 and wrote one inventory-ledger row | PASS |
+| Return from usage and return from customer | Each approval added one unit and one inventory-ledger row for its test batch | PASS |
+| Inter-warehouse transfer, partial receipt, remainder return | Dispatch replay was idempotent; received 3 of 5; requested return of 2; return review ACCEPT and physical return confirmation completed; receipt replay returned `already_processed=true`; final test balances source 96 + destination 3 = total 99, and ledger balances matched | PASS |
+| Stocktake cycle | Two lines populated and counted; submitted for review; a different reviewer approved; INCREASE settlement changed stock/ledger 99→100 and wrote one transaction-ledger row | PASS |
+| Offline sync replay | First sync returned SUCCESS; same operation replay returned ALREADY_PROCESSED with payload conflict check verified; one stock row, transaction, line, inventory-ledger row, transaction-ledger row and sync-log row during test | PASS |
+| Server-side warehouse scope | Active clerk with no assigned warehouses was denied creation in W1 with `No warehouse is assigned to this user` | PASS |
+| Ambiguous supplier-return owner | A temporary second owner was introduced only inside the rollback savepoint; ownerless supplier return was rejected because two owners had sufficient quantity | PASS |
+
+### Post-rollback database integrity
+- `stock`: 1 row, quantity 99.
+- `inventory_ledger`: 2 rows; stock-versus-ledger comparison across item/shelf/storage-area/owner/batch keys: 0 mismatches (1 key compared).
+- `transaction_ledger`: 2 rows; arithmetic mismatches: 0.
+- Approved transactions without an approved transaction-ledger entry: 0.
+- Duplicate transaction references: 0.
+- Stock rows with missing shelves: 0; shelf/storage-area/warehouse mismatches: 0.
+- Current counts after rollback: 2 transactions, 2 transaction lines, 1 stock row, 2 inventory-ledger rows, 2 transaction-ledger rows, 0 stock transfers, 0 transfer orders, 0 stocktake sessions, and 0 sync-log rows.
+- Temporary stocktake permission changes and the temporary second-owner row were also rolled back.
+
+### SECURITY DEFINER review
+- Current database inventory: 71 public `SECURITY DEFINER` functions; 33 executable by `authenticated`, 0 executable by `anon`. All 71 have a pinned `search_path`.
+- For the 33 authenticated-executable functions, static definition checks found `auth.uid()` in all 33; permission-related terms in 27; active-user checks in 26; warehouse-scope terms in 22; and explicit row/advisory-lock terms in 16. These are keyword/structure indicators, not a substitute for semantic review of every function.
+- The critical posting, transfer/return, stocktake settlement, and sync functions were inspected and exercised through rollback tests above. Duplicate approvals are blocked; transfer receipt replay is idempotent; sync replay is idempotent; over-issue is rejected. A true simultaneous two-session race test remains unexecuted because the available rollback harness cannot safely keep one production transaction committed while proving the competing session's result.
+- Do not revoke all 33 functions in bulk. Some are deliberate application RPCs or helpers; continue reviewing any function not covered by the critical-flow tests individually.
 
 ### Security blockers still open
-- Live ACL inspection still shows `graphql_public.graphql(text,text,jsonb,jsonb)` owned by managed role `supabase_admin`, with EXECUTE for PUBLIC, `anon`, and `authenticated`. The connected `postgres` role is not a superuser and cannot assume the managed owner role. A narrow revoke migration was attempted; it failed its ACL verification and rolled back, so it is **not** in applied migration history and no successful GraphQL fix is claimed. Disable `graphql_public` exposure using a supported project-level/API setting or apply the ACL change with authorized owner privileges, then verify the endpoint and REST/RPC access.
-- Security Advisor still reports leaked-password protection disabled. The connected tools do not expose an Auth settings mutation; an authorized administrator must enable it in Supabase Auth Email/Password Security settings and rerun the advisor.
-- After retiring the two legacy zone/section report functions, 71 public `SECURITY DEFINER` functions remain; 33 are executable by `authenticated`, 0 by `anon`. All 71 have a pinned `search_path`. Security Advisor now reports 33 authenticated-callable `SECURITY DEFINER` functions. These warnings are not proven vulnerabilities; keep them open until per-function authorization, warehouse scope, idempotency, and concurrency tests are completed. Do not revoke them as a batch.
-- RLS is enabled on the 19 checked sensitive public tables; no `anon` table SELECT/INSERT grants were found in the checked set. Authenticated table grants remain guarded by RLS and database permission policies.
+- **GraphQL ACL remains unresolved.** Live ACL inspection shows `graphql_public.graphql(text,text,jsonb,jsonb)` owned by managed role `supabase_admin`, with EXECUTE granted to PUBLIC, `anon`, and `authenticated`. The migration `20261025110500_orshap_verify_orphan_graphql_resolver_acl_live_v13958.sql` was attempted through the connected tool, but it correctly failed its owner check because the current role is `postgres`, is not a superuser, and is not a member of `supabase_admin`. The migration was not recorded as applied and ACLs remain unchanged. Disable `graphql_public` exposure through a supported Supabase project/API setting or apply the narrow REVOKE/GRANT as an authorized function owner, then re-check effective privileges and REST/RPC behavior.
+- **Leaked-password protection remains disabled.** Security Advisor still reports `auth_leaked_password_protection`. The connected tools do not expose an Auth-settings mutation. An authorized administrator must enable leaked-password protection in Supabase Auth Email/Password security settings and rerun Security Advisor.
+- The Security Advisor still reports 33 authenticated-callable `SECURITY DEFINER` functions. This count is a warning, not 33 proven vulnerabilities. Keep the remaining functions under per-function review.
 
 ### Release decision
-**Not approved for production yet.** The live balance/ledger snapshot reconciles, and browser smoke coverage passes, but full authenticated end-to-end tests for transfer/partial receipt/return/rejection/concurrency and the two open security settings above remain release blockers.
+**Not approved for production yet.** The live database posting, supplier/customer/usage returns, partial transfer and return, stocktake settlement, sync replay, over-issue rejection, owner ambiguity, and warehouse-scope tests passed with forced rollback and no residual test data. Stock and both ledgers reconcile. Production approval remains blocked by the unresolved GraphQL client-execution ACL and disabled leaked-password protection; a true simultaneous two-session over-issue test and separate CI execution on the exact squash merge commit also remain unverified.
