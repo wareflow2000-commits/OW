@@ -19,7 +19,14 @@ BEGIN
 
   IF has_function_privilege('anon', v_function, 'EXECUTE')
      OR has_function_privilege('authenticated', v_function, 'EXECUTE')
-     OR has_function_privilege('public', v_function, 'EXECUTE') THEN
+     OR EXISTS (
+       SELECT 1
+       FROM pg_proc p
+       CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) acl
+       WHERE p.oid = v_function::oid
+         AND acl.grantee = 0
+         AND acl.privilege_type = 'EXECUTE'
+     ) THEN
     RAISE EXCEPTION 'GraphQL resolver ACL verification failed: client execution remains granted';
   END IF;
 
