@@ -177,6 +177,20 @@ const { chromium } = require('playwright');
     assert.equal(await page.evaluate(() => state.page), 'transactions', 'Mobile navigation must change the active page.');
     await page.screenshot({ path: path.join(outDir, 'mobile-transactions-ar.png'), fullPage: true });
 
+    await page.route('**/rpc/next_transaction_reference*', route => route.fulfill({
+      status: 403,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Blocked by visual smoke test; no database call is allowed.' })
+    }));
+    await page.locator('.page [data-action="v12-new-tx"]').first().click();
+    await page.waitForTimeout(300);
+    const mobileRequestDebug = await page.evaluate(() => ({ hasModalState: !!state.modal, modalRootHasForm: !!document.querySelector('#modal-root #v12-tx-form') }));
+    assert.ok(mobileRequestDebug.modalRootHasForm, 'Mobile New Request button must open the form. Debug: ' + JSON.stringify({ mobileRequestDebug, pageErrors }));
+    await page.screenshot({ path: path.join(outDir, 'mobile-new-request.png'), fullPage: true });
+    await page.locator('#modal-root [data-action="close-modal"]').click();
+    await page.unroute('**/rpc/next_transaction_reference*');
+
+
     assert.deepEqual(pageErrors, [], 'No uncaught browser JavaScript errors are allowed during the visual smoke test.');
     console.log(JSON.stringify({ status: 'passed', screenshots: fs.readdirSync(outDir), rtlDesktop, ltrDesktop, mobileLogin, mobileShell, pageErrors }, null, 2));
   } finally {
