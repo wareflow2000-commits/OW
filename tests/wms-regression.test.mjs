@@ -195,7 +195,7 @@ test('transaction owner changes use the resolver and blank selections clear draf
 });
 
 test('stocktake settlement preserves owner dimension and rejects ambiguous owner allocation', () => {
-  const migrationPath = new URL('../supabase/migrations/20261025101500_orshap_fix_stocktake_settlement_owner_conflict_v13958.sql', import.meta.url);
+  const migrationPath = new URL('../supabase/migrations/20261025095755_orshap_fix_stocktake_settlement_owner_conflict_v13958.sql', import.meta.url);
   const migration = fs.readFileSync(migrationPath, 'utf8');
   const start = migration.indexOf('CREATE OR REPLACE FUNCTION public.process_stocktake_settlement_direct_internal_with_direction');
   const end = migration.indexOf('COMMENT ON FUNCTION public.process_stocktake_settlement_direct_internal_with_direction', start);
