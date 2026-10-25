@@ -37,6 +37,11 @@ test('dashboard and transactions route to a non-blocking New Request modal', () 
   assert.match(app, /async function v12RequestTransactionReference\(requestId\)[\s\S]{0,1400}Promise\.race/);
 });
 
+test('New Request click events bypass legacy delegated handlers', () => {
+  assert.ok(app.includes("const btn=e.target.closest('[data-action=\"v12-new-tx\"]')"));
+  assert.ok(app.includes("handleAction('v12-new-tx');"));
+});
+
 test('transaction shelves are filtered to active valid warehouse-area relationships', () => {
   assert.match(app, /function v13TxShelfIsValid\(sh\)[\s\S]{0,350}area\.warehouse_id===sh\.warehouse_id/);
   const start = app.indexOf('function v13TxShelfChoices(');
