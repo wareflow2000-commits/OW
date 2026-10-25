@@ -869,7 +869,7 @@ try{render()}catch(e){console.error('V10 final render failed',e)}
     const results=await Promise.all(names.map(async k=>{try{const r=await q(k);if(r.error){if(required.has(k))throw new Error(`Unable to load required table ${k}: ${r.error.message}`);console.warn('Optional table unavailable:',k,r.error.message);return [k,[]];}return [k,r.data||[]];}catch(e){if(required.has(k))throw e;console.warn('Optional table load skipped:',k,e.message||e);return [k,[]];}}));
     for(const [k,rows] of results)pulled[k]=rows;
     for(const k of names){V5_DB[k]=pulled[k]||[];V12.remoteState[k]=pulled[k]||[]}
-    V5_DB.stock=V5_DB.stock.map(x=>{const sh=v5Find('shelves',x.shelf_id)||{};return {...x,warehouse_id:sh.warehouse_id||null,storage_area_id:sh.storage_area_id||x.storage_area_id||null}});
+    V5_DB.stock=V5_DB.stock.map(x=>{const sh=(V5_DB.shelves||[]).find(y=>y.id===x.shelf_id)||{};return {...x,warehouse_id:sh.warehouse_id||null,storage_area_id:sh.storage_area_id||x.storage_area_id||null}});
     V5_DB.transactions=V5_DB.transactions.map(x=>({...x,transaction_lines:V5_DB.transaction_lines.filter(l=>l.transaction_id===x.id),total_qty:V5_DB.transaction_lines.filter(l=>l.transaction_id===x.id).reduce((n,l)=>n+Number(l.quantity||0),0)}));
     applyOfflineMasterOverlay();outboxOverlay();
     const current=V12.remoteState.profiles.find(p=>p.id===state.session?.id)||state.session?.profile||{};if(state.session){state.session.profile=current;state.session.role=current.role||state.session.role;}const role=String(current.role||state.session?.role||'').toUpperCase(),admin=['SUPER_ADMIN','ADMIN'].includes(role),assigned=Array.isArray(current.assigned_warehouse_ids)?current.assigned_warehouse_ids:[];state.noWarehouseAccess=!admin&&assigned.length===0;
