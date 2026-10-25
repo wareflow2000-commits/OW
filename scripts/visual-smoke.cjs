@@ -69,6 +69,7 @@ const { chromium } = require('playwright');
       body: JSON.stringify({ message: 'Blocked by visual smoke test; no database call is allowed.' })
     }));
     await page.evaluate(() => {
+      state.session = { id: 'smoke-admin', role: 'SUPER_ADMIN', profile: { id: 'smoke-admin', role: 'SUPER_ADMIN', status: 'ACTIVE', assigned_warehouse_ids: [], custom_permissions: ['*'] } };
       state.page = 'dashboard';
       state.c10ReportKind = '';
       render();
