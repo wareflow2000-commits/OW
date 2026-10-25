@@ -51,7 +51,7 @@ test('v13 field handlers call the v12 transaction modal through an explicit brid
   assert.ok(app.includes('window.orshapV12TxModal=txModal;'));
   const designStart = app.indexOf('/* ORSHAP WMS V13 — design-system');
   const start = app.indexOf('(function(){', designStart);
-  const end = app.indexOf('\\n})();', start);
+  const end = app.indexOf('\n})();', start);
   const designScope = app.slice(start, end);
   assert.doesNotMatch(designScope, /\btxModal\s*\(/);
   assert.match(designScope, /window\.orshapV12TxModal\?\.\(\)/);
