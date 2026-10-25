@@ -465,6 +465,8 @@ test('explicit warehouse assignments constrain administrator dropdown scope', ()
   assert.equal(sandbox.c10AccessibleWarehouse('wh-b'),false,'super admin assignment must not be bypassed');
   sandbox.state.session.profile.assigned_warehouse_ids=[];
   assert.equal(sandbox.c10AccessibleWarehouse('wh-b'),true,'unrestricted admin with no assignment list retains global access');
+  sandbox.state.session={id:'manager-1',role:'MANAGER',profile:{role:'MANAGER',assigned_warehouse_ids:[]}};
+  assert.equal(sandbox.c10AccessibleWarehouse('wh-a'),false,'manager without an explicit assignment is not implicitly global');
   sandbox.state.session={id:'user-1',role:'USER',profile:{role:'USER',assigned_warehouse_ids:[]}};
   assert.equal(sandbox.c10AccessibleWarehouse('wh-a'),false,'non-admin without assignments has no warehouse access');
 });
