@@ -91,12 +91,30 @@ const { chromium } = require('playwright');
     });
     await page.waitForFunction(() => !!document.querySelector('#v12-tx-form [name="draft_shelf_id"]')?.value, { timeout: 5000 });
     assert.equal(await page.locator('#v12-tx-form').count(), 1, 'Changing the item must keep the form rendered.');
+    // Add a second valid shelf only to the browser-local seed, then reselect the item.
+    await page.evaluate(() => {
+      const firstShelf = V5_DB.shelves[0];
+      V5_DB.shelves.push({ id: 'smoke-shelf-2', warehouse_id: firstShelf.warehouse_id, storage_area_id: firstShelf.storage_area_id, code: 'SMOKE-A-02', name: 'Smoke Shelf 2', is_active: true });
+      const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
+      item.value = '';
+      item.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForSelector('#v12-tx-form [name="draft_item_id"]', { state: 'visible' });
+    await page.evaluate(() => {
+      const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
+      if (!item || item.options.length < 2) throw new Error('Seeded item option is unavailable after rerender.');
+      item.value = item.options[1].value;
+      item.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForFunction(() => {
+      const shelf = document.querySelector('#v12-tx-form [name="draft_shelf_id"]');
+      return !!shelf && shelf.options.length >= 3 && shelf.value === '';
+    }, { timeout: 5000 });
+    assert.equal(await page.locator('#v12-tx-form [name="draft_shelf_id"]').inputValue(), '', 'Multiple valid shelves must require an explicit selection.');
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-dashboard.png'), fullPage: true });
     await page.locator('#modal-root [data-action="close-modal"]').last().click();
 
     await page.evaluate(() => {
-      const firstShelf = V5_DB.shelves[0];
-      V5_DB.shelves.push({ id: 'smoke-shelf-2', warehouse_id: firstShelf.warehouse_id, storage_area_id: firstShelf.storage_area_id, code: 'SMOKE-A-02', name: 'Smoke Shelf 2', is_active: true });
       state.page = 'transactions';
       render();
     });
@@ -107,18 +125,6 @@ const { chromium } = require('playwright');
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-transactions.png'), fullPage: true });
     await page.locator('#modal-root [data-action="close-modal"]').last().click();
 
-    // With two valid shelves, item selection must not choose one arbitrarily.
-    await page.evaluate(() => {
-      const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
-      if (!item || item.options.length < 2) throw new Error('Seeded item option is unavailable in the second New Request test.');
-      item.value = item.options[1].value;
-      item.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    await page.waitForFunction(() => {
-      const shelf = document.querySelector('#v12-tx-form [name="draft_shelf_id"]');
-      return !!shelf && shelf.options.length >= 3 && shelf.value === '';
-    }, { timeout: 5000 });
-    assert.equal(await page.locator('#v12-tx-form [name="draft_shelf_id"]').inputValue(), '', 'Multiple valid shelves must require an explicit selection.');
 
     await page.unroute('**/rpc/next_transaction_reference*');
 
