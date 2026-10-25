@@ -193,3 +193,18 @@ test('transaction owner changes use the resolver and blank selections clear draf
   assert.ok(app.includes("v13TxResolveOwnerSelection(state.v12TxDraftLine.item_id,sh.id,state.v12TxMeta?.transaction_type,state.v12TxWarehouseId,state.v12TxDraftLine.administrative_department_id)"), 'shelf changes must preserve only a still-valid owner');
   assert.ok(app.includes("v13TxResolveOwnerSelection(state.v12TxDraftLine.item_id,state.v12TxDraftLine.shelf_id,el.value,state.v12TxWarehouseId||'',state.v12TxDraftLine.administrative_department_id)"), 'transaction-type changes must preserve only a still-valid owner');
 });
+
+test('stocktake settlement preserves owner dimension and rejects ambiguous owner allocation', () => {
+  const migrationPath = new URL('../supabase/migrations/20261025101500_orshap_fix_stocktake_settlement_owner_conflict_v13958.sql', import.meta.url);
+  const migration = fs.readFileSync(migrationPath, 'utf8');
+  const start = migration.indexOf('CREATE OR REPLACE FUNCTION public.process_stocktake_settlement_direct_internal_with_direction');
+  const end = migration.indexOf('COMMENT ON FUNCTION public.process_stocktake_settlement_direct_internal_with_direction', start);
+  assert.ok(start >= 0 && end > start, 'owner-aware stocktake settlement migration exists');
+  const source = migration.slice(start, end);
+  assert.match(source, /LOCK TABLE public\.stock IN SHARE ROW EXCLUSIVE MODE/);
+  assert.match(source, /v_owner_count > 1[\s\S]{0,220}spans multiple owning departments/);
+  assert.match(source, /v_line\.item_id,v_line\.shelf_id,v_owner,v_new_qty/);
+  assert.match(source, /ON CONFLICT \(item_id,shelf_id,batch_no,administrative_department_id\)/);
+  assert.doesNotMatch(source, /ON CONFLICT \(item_id,shelf_id,batch_no\)/);
+  assert.match(source, /'administrative_department_id',v_owner/);
+});
