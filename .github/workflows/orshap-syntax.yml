@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - audit/v13.9.58-dropdown-unification
+      - audit/smart-dropdown-interactions-v13958
   pull_request:
     branches:
       - main
