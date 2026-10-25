@@ -128,22 +128,33 @@ const { chromium } = require('playwright');
 
     // A second eligible shelf must not clear the smart suggestion; manual override remains available.
     const selectedItemId = await page.locator('#v12-tx-form [name="draft_item_id"]').inputValue();
-    await page.evaluate(() => {
+    await page.evaluate(itemId => {
       const shelfSelect = document.querySelector('#v12-tx-form [name="draft_shelf_id"]');
       const firstShelf = V5_DB.shelves.find(sh => sh.id === shelfSelect?.value);
       if (!firstShelf) throw new Error('The initially suggested valid shelf is missing.');
-      V5_DB.shelves.push({
+      const secondShelf = {
         id: 'smoke-shelf-second-valid',
         warehouse_id: firstShelf.warehouse_id,
         storage_area_id: firstShelf.storage_area_id,
         code: 'SMOKE-SHELF-02',
         name: 'Smoke Shelf 2',
         is_active: true
+      };
+      V5_DB.shelves.push(secondShelf);
+      // Issue shelf choices must have positive stock at each candidate location.
+      V5_DB.stock.push({
+        id: 'smoke-stock-second-shelf',
+        item_id: itemId,
+        shelf_id: secondShelf.id,
+        storage_area_id: secondShelf.storage_area_id,
+        quantity: 7,
+        batch_no: 'SMOKE-BATCH-02',
+        expiry_date: null
       });
       const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
       item.value = '';
       item.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    }, selectedItemId);
     await page.locator('#v12-tx-form').waitFor({ state: 'visible' });
     await page.evaluate(itemId => {
       const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
