@@ -548,9 +548,12 @@ html.dark .badge.gray {
   padding:20px;
 }
 .modal {
+  display:flex;
+  flex-direction:column;
   width:min(780px,100%);
   max-height:90vh;
-  overflow:auto;
+  min-height:0;
+  overflow:hidden;
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:20px;
@@ -568,6 +571,10 @@ html.dark .badge.gray {
   font-weight:900;
 }
 .modal-body {
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
   padding:18px;
 }
 .modal-wide {
@@ -4170,12 +4177,15 @@ button,input,select,textarea {
     background:rgba(2,9,20,.58);
   }
   .modal,.modal-wide {
+    display:flex;
+    flex-direction:column;
     width:100%!important;
     max-width:100%!important;
     max-height:min(91dvh,900px);
+    min-height:0;
     border-radius:20px 20px 0 0;
     border-bottom:0;
-    overflow:auto;
+    overflow:hidden;
     overscroll-behavior:contain;
     box-shadow:0 -12px 44px #0002;
     padding-bottom:env(safe-area-inset-bottom,0px);
@@ -4193,6 +4203,10 @@ button,input,select,textarea {
     font-size:13px;
   }
   .modal-body {
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+    overscroll-behavior:contain;
     padding:14px;
   }
   .modal-body .form-actions {
