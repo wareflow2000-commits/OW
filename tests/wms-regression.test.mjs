@@ -321,3 +321,12 @@ test('outbox promotes a provisional voucher reference once and persists it befor
   assert.match(source, /rpc\('next_transaction_reference',\{\}\)/);
   assert.ok(source.indexOf('outboxWrite(rows)') < source.indexOf("rpc('create_transaction_with_lines'"), 'official reference is persisted before the create RPC');
 });
+
+test('provisional references never go directly to transaction creation', () => {
+  const start = app.indexOf('async function saveTx()');
+  const end = app.indexOf('\n  function ', start + 20);
+  assert.ok(start >= 0 && end > start, 'saveTx function exists');
+  const source = app.slice(start, end);
+  assert.match(source, /if\(!navigator\.onLine\|\|\/\^LOCAL-\/i\.test\(tx\.reference_no\)\)/);
+  assert.ok(source.indexOf('outboxEnqueue(payload)') < source.indexOf("rpc('create_transaction_with_lines'"), 'provisional references are queued before any direct create RPC');
+});
