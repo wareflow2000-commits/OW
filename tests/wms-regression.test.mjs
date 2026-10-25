@@ -521,6 +521,10 @@ test('warehouse scope migration hardens RLS reads and SECURITY DEFINER write pat
   assert.match(migration, /DROP POLICY IF EXISTS archive_movements_active_read/);
   assert.match(migration, /archive_movements_manager_insert[\s\S]*?current_user_can_access_warehouse\(warehouse_id\)/);
   assert.match(migration, /DROP POLICY IF EXISTS stock_transfers_select_assigned/);
+  assert.match(migration, /orshap\.transfer_scope_bypass/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.reject_stock_transfer_receipt/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.finalize_stock_transfer_source_issue/);
+  assert.match(migration, /received\+returned quantities reconcile/);
 });
 
 
