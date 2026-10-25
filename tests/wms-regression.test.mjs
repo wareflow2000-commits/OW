@@ -107,6 +107,11 @@ test('both transaction movement UIs hide orphan shelves until a valid storage ar
   assert.match(app, /validShelves=shelves\.filter\(sh=>sh\.warehouse_id===wh&&!!area&&sh\.storage_area_id===area/);
 });
 
+test('item change auto-selects a shelf only when exactly one valid shelf exists', () => {
+  assert.match(app, /state\.v12TxDraftLine\.shelf_id=eligible\.length===1\?eligible\[0\]\.id:''/);
+  assert.match(app, /const eligible=v13TxShelfChoices\(el\.value,type,state\.v12TxWarehouseId\)/);
+});
+ 
 test('shelf facility modal refreshes storage areas when its warehouse changes', () => {
   assert.ok(app.includes("const v8fac=el.closest('#v8-facility-form');if(v8fac&&el.name==='warehouse_id')"));
   assert.ok(app.includes('v13SetOptions(areaSel,areas,selected'));
