@@ -37,7 +37,7 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $$
 DECLARE v_tx_id uuid; v_warehouse_id uuid;
 BEGIN
-  IF auth.uid() IS NULL THEN RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END; END IF;
+  IF auth.uid() IS NULL THEN IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW; END IF;
   v_tx_id := CASE WHEN TG_OP='DELETE' THEN OLD.transaction_id ELSE NEW.transaction_id END;
   SELECT t.warehouse_id INTO v_warehouse_id FROM public.transactions t WHERE t.id=v_tx_id;
   IF v_warehouse_id IS NULL OR NOT public.current_user_can_access_warehouse(v_warehouse_id) THEN
@@ -46,7 +46,7 @@ BEGIN
   IF TG_OP='UPDATE' AND OLD.transaction_id IS DISTINCT FROM NEW.transaction_id THEN
     RAISE EXCEPTION 'Transaction lines cannot be moved between transactions';
   END IF;
-  RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
+  IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW;
 END;
 $$;
 DROP TRIGGER IF EXISTS trg_enforce_transaction_line_warehouse_scope ON public.transaction_lines;
