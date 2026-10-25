@@ -220,3 +220,11 @@ test('live orphan GraphQL resolver ACL migration revokes client execution and ve
   assert.ok(migration.includes('GraphQL resolver ACL verification failed'));
   assert.doesNotMatch(migration, /INSERT INTO|UPDATE public\.stock|DELETE FROM public\.stock|TRUNCATE/i);
 });
+
+test('GraphQL ACL migration checks PUBLIC through ACL expansion rather than treating PUBLIC as a role', () => {
+  const migrationPath = new URL('../supabase/migrations/20261025110500_orshap_verify_orphan_graphql_resolver_acl_live_v13958.sql', import.meta.url);
+  const migration = fs.readFileSync(migrationPath, 'utf8');
+  assert.ok(migration.includes('aclexplode(COALESCE(p.proacl, acldefault'));
+  assert.ok(migration.includes('acl.grantee = 0'));
+  assert.doesNotMatch(migration, /has_function_privilege\(['"]public['"]/i);
+});
