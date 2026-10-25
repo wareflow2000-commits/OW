@@ -95,6 +95,8 @@ const { chromium } = require('playwright');
     await page.locator('#modal-root [data-action="close-modal"]').last().click();
 
     await page.evaluate(() => {
+      const firstShelf = V5_DB.shelves[0];
+      V5_DB.shelves.push({ id: 'smoke-shelf-2', warehouse_id: firstShelf.warehouse_id, storage_area_id: firstShelf.storage_area_id, code: 'SMOKE-A-02', name: 'Smoke Shelf 2', is_active: true });
       state.page = 'transactions';
       render();
     });
@@ -104,7 +106,45 @@ const { chromium } = require('playwright');
     assert.ok(transactionsRequestDebug.modalRootHasForm, 'Transactions New Request button must open the form. Debug: ' + JSON.stringify({ transactionsRequestDebug, pageErrors }));
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-transactions.png'), fullPage: true });
     await page.locator('#modal-root [data-action="close-modal"]').last().click();
+
+    // With two valid shelves, item selection must not choose one arbitrarily.
+    await page.evaluate(() => {
+      const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
+      if (!item || item.options.length < 2) throw new Error('Seeded item option is unavailable in the second New Request test.');
+      item.value = item.options[1].value;
+      item.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForFunction(() => {
+      const shelf = document.querySelector('#v12-tx-form [name="draft_shelf_id"]');
+      return !!shelf && shelf.options.length >= 3 && shelf.value === '';
+    }, { timeout: 5000 });
+    assert.equal(await page.locator('#v12-tx-form [name="draft_shelf_id"]').inputValue(), '', 'Multiple valid shelves must require an explicit selection.');
+
     await page.unroute('**/rpc/next_transaction_reference*');
+
+
+    // Test the shelf modal's warehouse -> storage-area dependency without saving anything.
+    await page.evaluate(() => {
+      const first = V5_DB.warehouses[0];
+      V5_DB.warehouses.push({ id: 'smoke-wh-2', code: 'WH-SMOKE-2', name: 'Smoke Warehouse 2', is_active: true });
+      V5_DB.storage_areas.push({ id: 'smoke-area-2', warehouse_id: 'smoke-wh-2', code: 'AREA-SMOKE-2', name: 'Smoke Area 2', is_active: true });
+      state.v8FacilityWarehouseId = first.id;
+      state.page = 'facilities';
+      render();
+    });
+    await page.locator('[data-action="v8-open-shelf"]').click();
+    await page.locator('#v8-facility-form [name="warehouse_id"]').waitFor({ state: 'visible' });
+    await page.evaluate(() => {
+      const warehouse = document.querySelector('#v8-facility-form [name="warehouse_id"]');
+      warehouse.value = 'smoke-wh-2';
+      warehouse.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForFunction(() => {
+      const area = document.querySelector('#v8-facility-form [name="storage_area_id"]');
+      return !!area && area.value === 'smoke-area-2' && area.options.length === 2;
+    }, { timeout: 5000 });
+    await page.screenshot({ path: path.join(outDir, 'desktop-shelf-area-dependency.png'), fullPage: true });
+    await page.locator('#modal-root [data-action="close-modal"]').last().click();
 
     await page.locator('.topbar [data-action="toggle-lang"]').click();
     await page.waitForFunction(() => document.documentElement.dir === 'ltr');
