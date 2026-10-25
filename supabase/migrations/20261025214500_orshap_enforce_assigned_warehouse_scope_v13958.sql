@@ -14,6 +14,10 @@ AS $$
   ) END;
 $$;
 
+-- Transfer lifecycle exception: a destination-assigned user may reject receipt and return stock to source,
+-- and may finalize the source issue after received+returned quantities reconcile. The only cross-scope
+-- context is set inside the validated SECURITY DEFINER RPCs below; triggers verify the exact transfer,
+-- endpoint assignment, reference/status, and quantity reconciliation before allowing that one write.
 CREATE OR REPLACE FUNCTION public.enforce_transaction_warehouse_scope()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $$
