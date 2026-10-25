@@ -45,18 +45,19 @@ jobs:
         run: |
           npm install --no-save --no-package-lock playwright
           npx playwright install --with-deps chromium
-      - name: Start static app server
+      - name: Run desktop and mobile browser smoke tests
         run: |
+          set -eu
           python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/orshap-http.log 2>&1 &
-          echo $! > /tmp/orshap-http.pid
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
           for i in $(seq 1 30); do
-            if curl --silent --fail http://127.0.0.1:4173/ > /dev/null; then exit 0; fi
+            if curl --silent --fail http://127.0.0.1:4173/ > /dev/null; then ready=1; break; fi
             sleep 1
           done
-          cat /tmp/orshap-http.log
-          exit 1
-      - name: Run desktop and mobile browser smoke tests
-        run: node scripts/visual-smoke.cjs
+          if [ "$ready" -ne 1 ]; then cat /tmp/orshap-http.log; exit 1; fi
+          node scripts/visual-smoke.cjs
       - name: Upload browser screenshots
         if: always()
         uses: actions/upload-artifact@v4
