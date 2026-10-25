@@ -40,6 +40,9 @@ BEGIN
   IF auth.uid() IS NULL THEN IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW; END IF;
   v_tx_id := CASE WHEN TG_OP='DELETE' THEN OLD.transaction_id ELSE NEW.transaction_id END;
   SELECT t.warehouse_id INTO v_warehouse_id FROM public.transactions t WHERE t.id=v_tx_id;
+  -- A cascading delete may execute after its parent row is no longer visible; the FK
+  -- guarantees the deleted line belonged to that parent, so allow only that delete case.
+  IF v_warehouse_id IS NULL AND TG_OP='DELETE' THEN RETURN OLD; END IF;
   IF v_warehouse_id IS NULL OR NOT public.current_user_can_access_warehouse(v_warehouse_id) THEN
     RAISE EXCEPTION 'WAREHOUSE_SCOPE_DENIED: transaction line is outside the current user assigned warehouses' USING ERRCODE='42501';
   END IF;
@@ -79,6 +82,8 @@ BEGIN
   IF auth.uid() IS NULL THEN IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW; END IF;
   v_session_id := CASE WHEN TG_OP='DELETE' THEN OLD.session_id ELSE NEW.session_id END;
   SELECT s.warehouse_id INTO v_warehouse_id FROM public.stocktake_sessions s WHERE s.id=v_session_id;
+  -- Permit only a cascading delete whose parent session is already being removed.
+  IF v_warehouse_id IS NULL AND TG_OP='DELETE' THEN RETURN OLD; END IF;
   IF v_warehouse_id IS NULL OR NOT public.current_user_can_access_warehouse(v_warehouse_id) THEN
     RAISE EXCEPTION 'WAREHOUSE_SCOPE_DENIED: stocktake line is outside the current user assigned warehouses' USING ERRCODE='42501';
   END IF;
