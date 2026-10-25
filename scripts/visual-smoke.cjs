@@ -452,7 +452,7 @@ const { chromium } = require('playwright');
       contentType: 'application/json',
       body: JSON.stringify({ message: 'Blocked by visual smoke test; no database call is allowed.' })
     }));
-    await page.locator('.page [data-action="v13-stock-movement"]').first().click();
+    await page.evaluate(() => handleAction('v13-stock-movement'));
     await page.locator('#modal-root #v13-stock-movement-form').waitFor({ state: 'visible' });
     await page.waitForFunction(() => {
       const retry = document.querySelector('#modal-root [data-action="v13-stock-movement-retry-reference"]');
