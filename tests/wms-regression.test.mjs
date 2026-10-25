@@ -212,9 +212,11 @@ test('stocktake settlement preserves owner dimension and rejects ambiguous owner
 test('live orphan GraphQL resolver ACL migration revokes client execution and verifies service_role', () => {
   const migrationPath = new URL('../supabase/migrations/20261025110500_orshap_verify_orphan_graphql_resolver_acl_live_v13958.sql', import.meta.url);
   const migration = fs.readFileSync(migrationPath, 'utf8');
-  assert.match(migration, /REVOKE ALL PRIVILEGES ON FUNCTION graphql_public\\.graphql\\(text, text, jsonb, jsonb\\) FROM PUBLIC, anon, authenticated/i);
-  assert.match(migration, /GRANT EXECUTE ON FUNCTION graphql_public\\.graphql\\(text, text, jsonb, jsonb\\) TO service_role/i);
-  assert.match(migration, /has_function_privilege\\('anon',[\\s\\S]{0,240}client execution remains granted/i);
-  assert.match(migration, /has_function_privilege\\('service_role',[\\s\\S]{0,180}service_role lost EXECUTE/i);
-  assert.doesNotMatch(migration, /\\b(INSERT INTO|UPDATE public\\.stock|DELETE FROM public\\.stock|TRUNCATE)\\b/i);
+  assert.ok(migration.includes('REVOKE ALL PRIVILEGES ON FUNCTION graphql_public.graphql(text, text, jsonb, jsonb) FROM PUBLIC, anon, authenticated'));
+  assert.ok(migration.includes('GRANT EXECUTE ON FUNCTION graphql_public.graphql(text, text, jsonb, jsonb) TO service_role'));
+  assert.ok(migration.includes("has_function_privilege('anon', v_function, 'EXECUTE')"));
+  assert.ok(migration.includes("has_function_privilege('authenticated', v_function, 'EXECUTE')"));
+  assert.ok(migration.includes("has_function_privilege('service_role', v_function, 'EXECUTE')"));
+  assert.ok(migration.includes('GraphQL resolver ACL verification failed'));
+  assert.doesNotMatch(migration, /INSERT INTO|UPDATE public\.stock|DELETE FROM public\.stock|TRUNCATE/i);
 });
