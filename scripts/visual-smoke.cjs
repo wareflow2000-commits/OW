@@ -189,6 +189,25 @@ const { chromium } = require('playwright');
     await page.screenshot({ path: path.join(outDir, 'desktop-shelf-area-dependency.png'), fullPage: true });
     await page.locator('#modal-root [data-action="close-modal"]').last().click();
 
+    // Exercise the older shelf registry form as well as the active facilities modal.
+    await page.evaluate(() => handleAction('v12-add-shelf'));
+    await page.locator('#v12-fac-form').waitFor({ state: 'visible' });
+    await page.evaluate(() => {
+      const warehouse = document.querySelector('#v12-fac-form select[name="warehouse_id"]');
+      const accessible = V5_DB.warehouses.find(w => w.is_active !== false && c10AccessibleWarehouse(w.id));
+      if (!warehouse || !accessible) throw new Error('Legacy shelf form warehouse selector is missing.');
+      warehouse.value = accessible.id;
+      warehouse.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForFunction(() => {
+      const area = document.querySelector('#v12-fac-form select[name="storage_area_id"]');
+      return !!area && area.options.length === 3 && area.value === '';
+    }, { timeout: 5000 });
+    const legacyAreaOptions = await page.locator('#v12-fac-form select[name="storage_area_id"] option').evaluateAll(options => options.map(o => o.value));
+    assert.deepEqual(legacyAreaOptions.sort(), ['', 'smoke-area-2', 'smoke-area-3'].sort(), 'Legacy shelf form must include an empty option and not silently choose the first of multiple areas.');
+    await page.screenshot({ path: path.join(outDir, 'desktop-legacy-shelf-area-dependency.png'), fullPage: true });
+    await page.locator('#modal-root [data-action="close-modal"]').last().click();
+
     await page.unroute('**/rpc/next_transaction_reference*');
 
     await page.locator('.topbar [data-action="toggle-lang"]').click();
