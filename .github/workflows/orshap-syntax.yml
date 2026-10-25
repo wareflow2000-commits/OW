@@ -18,6 +18,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Run WMS regression tests
+        run: node --test tests/wms-regression.test.mjs
       - name: Validate application JavaScript syntax
         run: |
           set -eu

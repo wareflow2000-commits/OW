@@ -111,3 +111,13 @@ test('shelf facility modal refreshes storage areas when its warehouse changes', 
   assert.ok(app.includes("const v8fac=el.closest('#v8-facility-form');if(v8fac&&el.name==='warehouse_id')"));
   assert.ok(app.includes('v13SetOptions(areaSel,areas,selected'));
 });
+
+test('offline New Request never fabricates a transaction reference', () => {
+  const start = app.indexOf("if(a==='v12-new-tx'){");
+  const end = app.indexOf("if(a==='v12-tx-retry-reference')", start);
+  assert.ok(start >= 0 && end > start, 'canonical New Request handler exists');
+  const handler = app.slice(start, end);
+  assert.match(handler, /if\(!navigator\.onLine\)\{txModal\(\);say\(/);
+  assert.doesNotMatch(handler, /reference_no\s*=\s*['"]OFF-/);
+  assert.match(handler, /v12RequestTransactionReference\(state\.v12ReferenceRequestId\)/);
+});
