@@ -126,24 +126,35 @@ const { chromium } = require('playwright');
     await page.waitForFunction(() => !!document.querySelector('#v12-tx-form [name="draft_shelf_id"]')?.value, { timeout: 5000 });
     assert.equal(await page.locator('#v12-tx-form').count(), 1, 'Changing the item must keep the form rendered.');
 
-    // Verify the one-valid-shelf auto-selection is cleared when a second valid shelf appears.
+    // A second eligible shelf must not clear the smart suggestion; manual override remains available.
     const selectedItemId = await page.locator('#v12-tx-form [name="draft_item_id"]').inputValue();
-    await page.evaluate(() => {
+    await page.evaluate(itemId => {
       const shelfSelect = document.querySelector('#v12-tx-form [name="draft_shelf_id"]');
       const firstShelf = V5_DB.shelves.find(sh => sh.id === shelfSelect?.value);
-      if (!firstShelf) throw new Error('The initially auto-selected valid shelf is missing.');
-      V5_DB.shelves.push({
+      if (!firstShelf) throw new Error('The initially suggested valid shelf is missing.');
+      const secondShelf = {
         id: 'smoke-shelf-second-valid',
         warehouse_id: firstShelf.warehouse_id,
         storage_area_id: firstShelf.storage_area_id,
         code: 'SMOKE-SHELF-02',
         name: 'Smoke Shelf 2',
         is_active: true
+      };
+      V5_DB.shelves.push(secondShelf);
+      // Issue shelf choices must have positive stock at each candidate location.
+      V5_DB.stock.push({
+        id: 'smoke-stock-second-shelf',
+        item_id: itemId,
+        shelf_id: secondShelf.id,
+        storage_area_id: secondShelf.storage_area_id,
+        quantity: 7,
+        batch_no: 'SMOKE-BATCH-02',
+        expiry_date: null
       });
       const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
       item.value = '';
       item.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    }, selectedItemId);
     await page.locator('#v12-tx-form').waitFor({ state: 'visible' });
     await page.evaluate(itemId => {
       const item = document.querySelector('#v12-tx-form [name="draft_item_id"]');
@@ -153,9 +164,19 @@ const { chromium } = require('playwright');
     }, selectedItemId);
     await page.waitForFunction(() => {
       const shelf = document.querySelector('#v12-tx-form [name="draft_shelf_id"]');
-      return !!shelf && shelf.options.length >= 3 && shelf.value === '';
+      return !!shelf && shelf.options.length >= 3 && !!shelf.value;
     }, { timeout: 5000 });
-    assert.equal(await page.locator('#v12-tx-form [name="draft_shelf_id"]').inputValue(), '', 'Multiple valid shelves must require an explicit selection.');
+    const suggestedShelfId = await page.locator('#v12-tx-form [name="draft_shelf_id"]').inputValue();
+    const manualShelfId = await page.evaluate(() => {
+      const shelf = document.querySelector('#v12-tx-form [name="draft_shelf_id"]');
+      const alternate = Array.from(shelf.options).find(option => option.value && option.value !== shelf.value);
+      if (!alternate) throw new Error('A second eligible shelf was not offered for manual selection.');
+      shelf.value = alternate.value;
+      shelf.dispatchEvent(new Event('change', { bubbles: true }));
+      return alternate.value;
+    });
+    await page.waitForFunction(id => document.querySelector('#v12-tx-form [name="draft_shelf_id"]')?.value === id, manualShelfId, { timeout: 5000 });
+    assert.notEqual(manualShelfId, suggestedShelfId, 'The user must be able to override the suggested shelf manually.');
 
     // Verify owner preservation/invalidation using only browser-local seed records.
     const ownerTest = await page.evaluate(() => {
