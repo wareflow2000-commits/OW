@@ -107,12 +107,14 @@ const { chromium } = require('playwright');
     // Exercise the active facilities shelf modal's warehouse -> storage-area dependency.
     // Seed records exist only in this browser process; do not save or call any database RPC.
     await page.evaluate(() => {
-      V5_DB.warehouses.push({ id: 'smoke-wh-2', code: 'WH-SMOKE-2', name: 'Smoke Warehouse 2', is_active: true });
+      const first = V5_DB.warehouses.find(w => w.is_active !== false && c10AccessibleWarehouse(w.id));
+      if (!first) throw new Error('No accessible active local test warehouse is available.');
+      V5_DB.storage_areas = V5_DB.storage_areas.filter(a => a.warehouse_id !== first.id);
       V5_DB.storage_areas.push(
-        { id: 'smoke-area-2', warehouse_id: 'smoke-wh-2', code: 'AREA-SMOKE-2', name: 'Smoke Area 2', is_active: true },
-        { id: 'smoke-area-3', warehouse_id: 'smoke-wh-2', code: 'AREA-SMOKE-3', name: 'Smoke Area 3', is_active: true }
+        { id: 'smoke-area-2', warehouse_id: first.id, code: 'AREA-SMOKE-2', name: 'Smoke Area 2', is_active: true },
+        { id: 'smoke-area-3', warehouse_id: first.id, code: 'AREA-SMOKE-3', name: 'Smoke Area 3', is_active: true }
       );
-      state.v8FacilityWarehouseId = 'smoke-wh-2';
+      state.v8FacilityWarehouseId = first.id;
       state.page = 'facilities';
       render();
     });
@@ -123,7 +125,8 @@ const { chromium } = require('playwright');
     await page.evaluate(() => {
       const warehouse = document.querySelector('#v8-facility-form select[name="warehouse_id"]');
       if (!warehouse) throw new Error('Active shelf modal warehouse selector is missing.');
-      warehouse.value = 'smoke-wh-2';
+      const accessible = V5_DB.warehouses.find(w => w.is_active !== false && c10AccessibleWarehouse(w.id));
+      warehouse.value = accessible.id;
       warehouse.dispatchEvent(new Event('change', { bubbles: true }));
     });
     await page.waitForFunction(() => {
