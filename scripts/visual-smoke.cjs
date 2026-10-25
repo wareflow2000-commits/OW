@@ -194,7 +194,7 @@ const { chromium } = require('playwright');
     await page.unroute('**/rpc/next_transaction_reference*');
 
 
-    const unexpectedConsoleErrors = consoleErrors.filter(message => !/Failed to load resource: the server responded with a status of (401|403)\\b/.test(message));
+    const unexpectedConsoleErrors = consoleErrors.filter(message => !/Failed to load resource: the server responded with a status of (401|403)\b/.test(message));
     assert.deepEqual(pageErrors, [], 'No uncaught browser JavaScript errors are allowed during the visual smoke test.');
     assert.deepEqual(unexpectedConsoleErrors, [], 'Unexpected browser console errors: ' + JSON.stringify(unexpectedConsoleErrors));
     assert.deepEqual(failedRequests, [], 'Network requests must not fail: ' + JSON.stringify(failedRequests));
