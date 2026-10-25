@@ -295,12 +295,12 @@ test('stock movement dependent fields are handled by one canonical change listen
 test('legacy offline sync RPCs are retired until they respect transaction approval', () => {
   const migrationPath = new URL('../supabase/migrations/20261025123000_orshap_revoke_approval_bypassing_sync_rpcs_v13958.sql', import.meta.url);
   const migration = fs.readFileSync(migrationPath, 'utf8');
-  assert.match(migration, /REVOKE ALL PRIVILEGES ON FUNCTION public\\.process_sync_batch\\(text, jsonb\\) FROM PUBLIC, anon, authenticated/i);
-  assert.match(migration, /REVOKE ALL PRIVILEGES ON FUNCTION public\\.process_sync_batch_v2\\(text, jsonb\\) FROM PUBLIC, anon, authenticated/i);
-  assert.match(migration, /has_function_privilege\\('authenticated', v_legacy, 'EXECUTE'\\)/);
-  assert.match(migration, /has_function_privilege\\('authenticated', v_v2, 'EXECUTE'\\)/);
+  assert.match(migration, /REVOKE ALL PRIVILEGES ON FUNCTION public\.process_sync_batch\(text, jsonb\) FROM PUBLIC, anon, authenticated/i);
+  assert.match(migration, /REVOKE ALL PRIVILEGES ON FUNCTION public\.process_sync_batch_v2\(text, jsonb\) FROM PUBLIC, anon, authenticated/i);
+  assert.match(migration, /has_function_privilege\('authenticated', v_legacy, 'EXECUTE'\)/);
+  assert.match(migration, /has_function_privilege\('authenticated', v_v2, 'EXECUTE'\)/);
   for (const file of ['app.js', 'supabase-client.js', 'SQLite-db.js', 'sw.js']) {
     const source = fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8');
-    assert.doesNotMatch(source, /process_sync_batch(?:_v2)?\\s*\\(/, file + ' must not depend on the retired RPC');
+    assert.doesNotMatch(source, /process_sync_batch(?:_v2)?\s*\(/, file + ' must not depend on the retired RPC');
   }
 });
