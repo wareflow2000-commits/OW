@@ -260,7 +260,6 @@ const { chromium } = require('playwright');
     await page.unroute('**/rpc/create_transaction_with_lines*');
 
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-dashboard.png'), fullPage: true });
-    await page.locator('#modal-root [data-action="close-modal"]').last().click();
 
     await page.evaluate(() => {
       state.page = 'transactions';
