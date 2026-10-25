@@ -498,6 +498,7 @@ test('offline transaction outbox permits only receipts and issues; stocktake use
   assert.match(app, /const offlineEligible=v13OfflineTransactionAllowed\(tx\.transaction_type\)/);
   assert.match(app, /Offline mode supports goods receipts, issues, and stocktake counts only/);
   assert.match(app, /!v13OfflineTransactionAllowed\(tx\.transaction_type\)/);
+  assert.match(app, /function outboxOverlay\(\)[\s\S]*?c10AccessibleWarehouse\(tx\.warehouse_id\)/);
   assert.match(app, /orshap_stocktake_count_queue_v1/);
 });
 
