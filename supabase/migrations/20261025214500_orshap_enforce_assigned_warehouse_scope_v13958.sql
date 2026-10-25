@@ -192,6 +192,29 @@ CREATE POLICY stocktake_logs_permission_select ON public.stocktake_logs FOR SELE
 USING ((current_user_has_permission('page:stocktake:access') OR current_user_has_permission('table:stocktake:view'))
   AND EXISTS (SELECT 1 FROM public.stocktake_sessions s WHERE s.id=stocktake_logs.session_id
               AND public.current_user_can_access_warehouse(s.warehouse_id)));
+-- Scope archive mutations to the same warehouse assignment as archive reads.
+DROP POLICY IF EXISTS archive_movements_manager_insert ON public.archive_movements;
+CREATE POLICY archive_movements_manager_insert ON public.archive_movements FOR INSERT
+WITH CHECK (public.current_user_is_manager() AND public.current_user_can_access_warehouse(warehouse_id));
+DROP POLICY IF EXISTS archive_movements_manager_update ON public.archive_movements;
+CREATE POLICY archive_movements_manager_update ON public.archive_movements FOR UPDATE
+USING (public.current_user_is_manager() AND public.current_user_can_access_warehouse(warehouse_id))
+WITH CHECK (public.current_user_is_manager() AND public.current_user_can_access_warehouse(warehouse_id));
+DROP POLICY IF EXISTS archive_movements_manager_delete ON public.archive_movements;
+CREATE POLICY archive_movements_manager_delete ON public.archive_movements FOR DELETE
+USING (public.current_user_is_manager() AND public.current_user_can_access_warehouse(warehouse_id));
+
+DROP POLICY IF EXISTS archive_balances_manager_insert ON public.archive_balances;
+CREATE POLICY archive_balances_manager_insert ON public.archive_balances FOR INSERT
+WITH CHECK (public.current_user_is_manager() AND public.current_user_can_access_warehouse(warehouse_id));
+DROP POLICY IF EXISTS archive_balances_manager_update ON public.archive_balances;
+CREATE POLICY archive_balances_manager_update ON public.archive_balances FOR UPDATE
+USING (public.current_user_is_manager() AND public.current_user_can_access_warehouse(warehouse_id))
+WITH CHECK (public.current_user_is_manager() AND public.current_user_can_access_warehouse(warehouse_id));
+DROP POLICY IF EXISTS archive_balances_manager_delete ON public.archive_balances;
+CREATE POLICY archive_balances_manager_delete ON public.archive_balances FOR DELETE
+USING (public.current_user_is_manager() AND public.current_user_can_access_warehouse(warehouse_id));
+
 -- Scope archive, audit, and transfer reads too; these tables can expose transaction history.
 DROP POLICY IF EXISTS archive_movements_active_read ON public.archive_movements;
 CREATE POLICY archive_movements_active_read ON public.archive_movements FOR SELECT
