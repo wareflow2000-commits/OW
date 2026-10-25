@@ -8,10 +8,20 @@
 DO $migration$
 DECLARE
   v_function regprocedure := to_regprocedure('graphql_public.graphql(text,text,jsonb,jsonb)');
+  v_owner oid;
+  v_is_superuser boolean := false;
 BEGIN
   IF v_function IS NULL THEN
     RAISE NOTICE 'graphql_public.graphql resolver is absent; no ACL change needed';
     RETURN;
+  END IF;
+
+  SELECT p.proowner INTO v_owner FROM pg_proc p WHERE p.oid = v_function::oid;
+  SELECT COALESCE(r.rolsuper, false) INTO v_is_superuser FROM pg_roles r WHERE r.rolname = current_user;
+  IF NOT v_is_superuser
+     AND v_owner <> (SELECT r.oid FROM pg_roles r WHERE r.rolname = current_user)
+     AND NOT pg_has_role(current_user, v_owner, 'member') THEN
+    RAISE EXCEPTION 'Cannot change graphql_public.graphql ACL: owner is %, current role % lacks owner privileges. Disable graphql_public exposure in Supabase API settings or apply the ACL change with the function owner role.', pg_get_userbyid(v_owner), current_user;
   END IF;
 
   EXECUTE 'REVOKE ALL PRIVILEGES ON FUNCTION graphql_public.graphql(text, text, jsonb, jsonb) FROM PUBLIC, anon, authenticated';
