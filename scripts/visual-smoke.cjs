@@ -116,7 +116,9 @@ const { chromium } = require('playwright');
       state.page = 'facilities';
       render();
     });
-    await page.locator('[data-action="open-shelf"], [data-action="v8-open-shelf"]').first().click();
+    // Open the actual modal renderer directly: the smoke-test account may not have
+    // facility-management permission, which correctly disables the UI button.
+    await page.evaluate(() => v8OpenFacility('shelf'));
     await page.locator('#v8-facility-form').waitFor({ state: 'visible' });
     await page.evaluate(() => {
       const warehouse = document.querySelector('#v8-facility-form select[name="warehouse_id"]');
