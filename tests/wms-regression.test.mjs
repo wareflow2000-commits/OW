@@ -468,3 +468,16 @@ test('explicit warehouse assignments constrain administrator dropdown scope', ()
   sandbox.state.session={id:'user-1',role:'USER',profile:{role:'USER',assigned_warehouse_ids:[]}};
   assert.equal(sandbox.c10AccessibleWarehouse('wh-a'),false,'non-admin without assignments has no warehouse access');
 });
+
+test('transaction warehouse dropdown respects explicit administrator assignment', () => {
+  const helperStart=app.indexOf('function c10AccessibleWarehouse(');
+  const helperEnd=app.indexOf('\nfunction c10Audit(',helperStart);
+  const dropdownStart=app.indexOf('function v13TxAllowedWarehouses()');
+  const dropdownEnd=app.indexOf('\nfunction v13TxShelfIsValid',dropdownStart);
+  assert.ok(helperStart>=0&&helperEnd>helperStart,'warehouse access predicate exists');
+  assert.ok(dropdownStart>=0&&dropdownEnd>dropdownStart,'transaction warehouse resolver exists');
+  const sandbox={state:{session:{id:'admin-1',role:'SUPER_ADMIN',profile:{role:'SUPER_ADMIN',assigned_warehouse_ids:['wh-a']}}},v5All:(table)=>table==='warehouses'?[{id:'wh-a'},{id:'wh-b'}]:[]};
+  vm.createContext(sandbox);
+  vm.runInContext(app.slice(helperStart,helperEnd)+'\n'+app.slice(dropdownStart,dropdownEnd),sandbox);
+  assert.deepEqual(Array.from(sandbox.v13TxAllowedWarehouses(),w=>w.id),['wh-a']);
+});
