@@ -153,7 +153,7 @@ test('system boolean settings are normalized to canonical TRUE/FALSE values', ()
 
 test('legacy shelf form requires explicit storage-area choice when multiple areas exist', () => {
   const start = app.indexOf("const fac=el.closest('#v12-fac-form')");
-  const end = app.indexOf("\\n\\n if(el.closest('#v12-tx-form')", start);
+  const end = app.indexOf("if(el.closest('#v12-tx-form')", start);
   assert.ok(start >= 0 && end > start, 'legacy facility dependency handler exists');
   const source = app.slice(start, end);
   assert.match(source, /const areas=v5All\\('storage_areas'\\)\\.filter\\(a=>a\\.warehouse_id===wh&&a\\.is_active!==false\\),selected=areas\\.length===1\\?areas\\[0\\]\\.id:''/);
