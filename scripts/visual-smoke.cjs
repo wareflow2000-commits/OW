@@ -200,6 +200,55 @@ const { chromium } = require('playwright');
     assert.equal(await page.locator('#v12-tx-form [name="draft_administrative_department_id"]').inputValue(), '', 'Changing to an item with different valid owners must clear the stale owner.');
     await page.screenshot({ path: path.join(outDir, 'desktop-owner-dropdown-state.png'), fullPage: true });
 
+    // Verify review-before-save and failed-save retention. All transaction writes are intercepted.
+    let createTransactionAttempts = 0;
+    await page.route('**/rpc/create_transaction_with_lines*', route => {
+      createTransactionAttempts++;
+      return route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Blocked by visual smoke test; no database write is allowed.' })
+      });
+    });
+    const reviewSeed = await page.evaluate(() => {
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const warehouse = V5_DB.warehouses.find(w => uuid.test(String(w.id || '')) && w.is_active !== false);
+      const shelf = V5_DB.shelves.find(sh => uuid.test(String(sh.id || '')) && sh.is_active !== false && sh.warehouse_id === warehouse?.id && V5_DB.storage_areas.some(a => a.id === sh.storage_area_id && a.warehouse_id === warehouse.id && a.is_active !== false));
+      const item = V5_DB.items.find(i => uuid.test(String(i.id || '')) && String(i.status || 'ACTIVE').toUpperCase() !== 'INACTIVE');
+      const owner = (V5_DB.administrative_departments || []).find(d => uuid.test(String(d.id || '')) && d.is_active !== false && String(d.status || 'ACTIVE').toUpperCase() !== 'INACTIVE');
+      if (!warehouse || !shelf || !item || !owner) throw new Error('Review smoke seed requires UUID-backed warehouse, shelf, item, and owner records.');
+      state.session = { id: warehouse.id, role: 'SUPER_ADMIN', profile: { id: warehouse.id, role: 'SUPER_ADMIN', status: 'ACTIVE', assigned_warehouse_ids: [], custom_permissions: ['*'] } };
+      state.v12TxMeta = { transaction_type: 'GRN', reference_no: 'SMOKE-REF-REVIEW-001', supplier: 'Smoke Supplier', receiver_name: 'Smoke Receiver', recipient_department_id: '', external_reference: '', adjustment_reason: '', notes: 'Browser smoke review only' };
+      state.v12TxWarehouseId = warehouse.id;
+      state.v12TxWarehouseManual = true;
+      state.v12TxDraftLine = { item_id: '', shelf_id: '', quantity: 1, batch_no: '', expiry_date: '', administrative_department_id: '' };
+      state.v12TxLines = [{ item_id: item.id, shelf_id: shelf.id, quantity: 1, batch_no: 'SMOKE-REVIEW-BATCH', expiry_date: null, administrative_department_id: owner.id }];
+      window.orshapV12TxModal?.();
+      return { warehouseId: warehouse.id, shelfId: shelf.id, itemId: item.id, ownerId: owner.id };
+    });
+    await page.locator('#v12-tx-form').waitFor({ state: 'visible' });
+    await page.locator('#v12-tx-form [name="supplier"]').evaluate(el => el.dispatchEvent(new Event('input', { bubbles: true })));
+    const reviewValidation = await page.evaluate(() => {
+      const form = document.getElementById('v12-tx-form');
+      const calc = window.orshapV12?.calculateDraft?.(Object.fromEntries(new FormData(form).entries()));
+      return { valid: !!calc?.valid, errors: calc?.errors || [], reference: form?.querySelector('[name="reference_no"]')?.value || '' };
+    });
+    assert.ok(reviewValidation.valid, 'Seeded GRN must pass client validation before review. Details: ' + JSON.stringify(reviewValidation));
+    await page.locator('#v12-tx-form [data-action="v12-tx-save"]').click();
+    await page.locator('[aria-label="Voucher review before confirmation"]').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(createTransactionAttempts, 0, 'Opening the review overlay must not write the transaction.');
+    await page.screenshot({ path: path.join(outDir, 'desktop-transaction-review-ar.png'), fullPage: true });
+    await page.locator('[data-review-confirm]').click();
+    await page.waitForFunction(() => document.querySelector('#v12-tx-form') !== null, { timeout: 5000 });
+    await page.waitForFunction(() => window.__smokeCreateTransactionAttempts ? window.__smokeCreateTransactionAttempts > 0 : true, { timeout: 1000 }).catch(() => {});
+    assert.ok(createTransactionAttempts >= 1, 'Confirming review must attempt the transaction RPC.');
+    assert.equal(await page.locator('#v12-tx-form').count(), 1, 'Failed database save must keep the transaction form open for correction/retry.');
+    assert.equal(await page.locator('[aria-label="Voucher review before confirmation"]').count(), 0, 'Review overlay should close after confirm, while the editable form remains.');
+    assert.equal(await page.locator('#v12-tx-form [name="reference_no"]').inputValue(), 'SMOKE-REF-REVIEW-001', 'Failed save must not clear or fabricate the reference.');
+    await page.screenshot({ path: path.join(outDir, 'desktop-transaction-save-failure-ar.png'), fullPage: true });
+    await page.locator('#modal-root [data-action="close-modal"]').last().click();
+    await page.unroute('**/rpc/create_transaction_with_lines*');
+
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-dashboard.png'), fullPage: true });
     await page.locator('#modal-root [data-action="close-modal"]').last().click();
 
