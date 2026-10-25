@@ -31,3 +31,19 @@ test('dashboard and transactions both route to the same new-transaction action',
   assert.match(app, /data-action="v12-new-tx">＋ \$\{T\(\)\.newReq\}/);
   assert.match(app, /if\(a==='v12-new-tx'\)[\s\S]{0,1500}catch\(e\)\{state\.v12TxMeta\.reference_no='';txModal\(\);say\(/);
 });
+
+test('transaction shelves are filtered to active valid warehouse-area relationships', () => {
+  assert.match(app, /function v13TxShelfIsValid\(sh\)[\s\S]{0,350}area\.warehouse_id===sh\.warehouse_id/);
+  const start = app.indexOf('function v13TxShelfChoices(');
+  const end = app.indexOf('\nfunction v13TxSuggestedWarehouse(', start);
+  const source = app.slice(start, end);
+  assert.match(source, /v13TxShelfIsValid\(sh\)/);
+});
+
+test('inbound owner defaults require an explicit valid shelf default; issue defaults require one stock owner', () => {
+  const start = app.indexOf('function v13TxUniqueOwner(');
+  const end = app.indexOf('\nfunction v13TxShelfLabel(', start);
+  const source = app.slice(start, end);
+  assert.match(source, /default_administrative_department_id/);
+  assert.match(source, /owners\.length===1\?owners\[0\]\.id:''/);
+});
