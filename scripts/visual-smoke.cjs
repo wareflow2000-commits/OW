@@ -142,6 +142,49 @@ const { chromium } = require('playwright');
     }, { timeout: 5000 });
     assert.equal(await page.locator('#v12-tx-form [name="draft_shelf_id"]').inputValue(), '', 'Multiple valid shelves must require an explicit selection.');
 
+    // Exercise owner-choice preservation and invalidation with browser-local records only.
+    const ownerTest = await page.evaluate(() => {
+      const warehouse = V5_DB.warehouses.find(w => w.is_active !== false && c10AccessibleWarehouse(w.id));
+      const area = warehouse && V5_DB.storage_areas.find(a => a.warehouse_id === warehouse.id && a.is_active !== false);
+      const item = V5_DB.items.find(i => String(i.status || 'ACTIVE').toUpperCase() !== 'INACTIVE');
+      if (!warehouse || !area || !item) throw new Error('Owner dropdown smoke seed is incomplete.');
+      const ownerA = { id: 'smoke-owner-a', code: 'OWNER-A', name: 'Smoke Owner A', name_ar: 'جهة اختبار أ', is_active: true, status: 'ACTIVE' };
+      const ownerB = { id: 'smoke-owner-b', code: 'OWNER-B', name: 'Smoke Owner B', name_ar: 'جهة اختبار ب', is_active: true, status: 'ACTIVE' };
+      const ownerC = { id: 'smoke-owner-c', code: 'OWNER-C', name: 'Smoke Owner C', name_ar: 'جهة اختبار ج', is_active: true, status: 'ACTIVE' };
+      V5_DB.administrative_departments = (V5_DB.administrative_departments || []).filter(d => ![ownerA.id, ownerB.id, ownerC.id].includes(d.id));
+      V5_DB.administrative_departments.push(ownerA, ownerB, ownerC);
+      const shelfA = { id: 'smoke-owner-shelf-a', warehouse_id: warehouse.id, storage_area_id: area.id, code: 'OWNER-SHELF-A', name: 'Owner Shelf A', is_active: true };
+      const shelfB = { id: 'smoke-owner-shelf-b', warehouse_id: warehouse.id, storage_area_id: area.id, code: 'OWNER-SHELF-B', name: 'Owner Shelf B', is_active: true };
+      V5_DB.shelves = V5_DB.shelves.filter(sh => ![shelfA.id, shelfB.id].includes(sh.id));
+      V5_DB.shelves.push(shelfA, shelfB);
+      const itemB = { id: 'smoke-owner-item-b', code: 'OWNER-ITEM-B', item_number: 'OWNER-NUM-B', name_en: 'Owner Smoke Item B', name_ar: 'صنف اختبار ب', status: 'ACTIVE', base_unit: 'PCS' };
+      V5_DB.items = V5_DB.items.filter(i => i.id !== itemB.id);
+      V5_DB.items.push(itemB);
+      V5_DB.stock = V5_DB.stock.filter(row => ![item.id, itemB.id].includes(row.item_id));
+      V5_DB.stock.push(
+        { id: 'smoke-owner-stock-a', item_id: item.id, shelf_id: shelfA.id, storage_area_id: area.id, administrative_department_id: ownerA.id, quantity: 5, batch_no: 'BATCH-A', expiry_date: null },
+        { id: 'smoke-owner-stock-b-a', item_id: item.id, shelf_id: shelfB.id, storage_area_id: area.id, administrative_department_id: ownerA.id, quantity: 5, batch_no: 'BATCH-A', expiry_date: null },
+        { id: 'smoke-owner-stock-b-b', item_id: item.id, shelf_id: shelfB.id, storage_area_id: area.id, administrative_department_id: ownerB.id, quantity: 5, batch_no: 'BATCH-B', expiry_date: null },
+        { id: 'smoke-owner-stock-item-b-b', item_id: itemB.id, shelf_id: shelfB.id, storage_area_id: area.id, administrative_department_id: ownerB.id, quantity: 5, batch_no: 'BATCH-B', expiry_date: null },
+        { id: 'smoke-owner-stock-item-b-c', item_id: itemB.id, shelf_id: shelfB.id, storage_area_id: area.id, administrative_department_id: ownerC.id, quantity: 5, batch_no: 'BATCH-C', expiry_date: null }
+      );
+      state.v12TxMeta = { ...(state.v12TxMeta || {}), transaction_type: 'ISSUE', reference_no: '' };
+      state.v12TxWarehouseId = warehouse.id;
+      state.v12TxWarehouseManual = true;
+      state.v12TxDraftLine = { item_id: item.id, shelf_id: '', quantity: 1, batch_no: '', expiry_date: '', administrative_department_id: '' };
+      state.v12TxLines = [];
+      window.orshapV12TxModal?.();
+      return { itemId: item.id, secondItemId: itemB.id, shelfAId: shelfA.id, shelfBId: shelfB.id, ownerAId: ownerA.id };
+    });
+    await page.locator('#v12-tx-form [name="draft_shelf_id"]').selectOption(ownerTest.shelfAId);
+    await page.waitForFunction(id => document.querySelector('#v12-tx-form [name="draft_administrative_department_id"]')?.value === id, ownerTest.ownerAId, { timeout: 5000 });
+    await page.locator('#v12-tx-form [name="draft_shelf_id"]').selectOption(ownerTest.shelfBId);
+    assert.equal(await page.locator('#v12-tx-form [name="draft_administrative_department_id"]').inputValue(), ownerTest.ownerAId, 'A still-valid owner must be preserved when a shelf has multiple owners.');
+    await page.locator('#v12-tx-form [name="draft_item_id"]').selectOption(ownerTest.secondItemId);
+    await page.waitForFunction(() => document.querySelector('#v12-tx-form [name="draft_administrative_department_id"]')?.value === '', { timeout: 5000 });
+    const ownerStateAfterInvalidation = await page.evaluate(() => state.v12TxDraftLine?.administrative_department_id || '');
+    assert.equal(ownerStateAfterInvalidation, '', 'An owner invalid for the newly selected item must be cleared from state as well as the control.');
+
     await page.screenshot({ path: path.join(outDir, 'desktop-new-request-dashboard.png'), fullPage: true });
     await page.locator('#modal-root [data-action="close-modal"]').last().click();
 
