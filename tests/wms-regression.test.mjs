@@ -124,7 +124,7 @@ test('offline New Request never fabricates a transaction reference', () => {
 
 test('system boolean settings are normalized to canonical TRUE/FALSE values', () => {
   const start = app.indexOf('function s81Set(');
-  const end = app.indexOf('\\nfunction s81Print', start);
+  const end = app.indexOf('function s81Print', start);
   assert.ok(start >= 0 && end > start, 'system setting writer exists');
   const queued = [];
   const sandbox = {
