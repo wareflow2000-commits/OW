@@ -60,6 +60,17 @@ const { chromium } = require('playwright');
     assert.ok(aboutStatIcons.every(icon => icon.trim() && icon.trim() !== 'undefined'), 'About summary cards must not render undefined icons.');
     await page.screenshot({ path: path.join(outDir, 'desktop-about-ar.png'), fullPage: true });
 
+    await page.locator('.topbar [data-action="toggle-lang"]').click();
+    await page.waitForFunction(() => document.documentElement.dir === 'ltr');
+    await page.locator('.page').waitFor({ state: 'visible' });
+    assert.match(await page.locator('.page').innerText(), /About & formulas/i, 'About page must retain English translation.');
+    const aboutEnglishIcons = await page.locator('.page .stat-icon').allTextContents();
+    assert.equal(aboutEnglishIcons.length, 3, 'English About page must render all three summary cards.');
+    assert.ok(aboutEnglishIcons.every(icon => icon.trim() && icon.trim() !== 'undefined'), 'English About summary cards must not render undefined icons.');
+    await page.screenshot({ path: path.join(outDir, 'desktop-about-en.png'), fullPage: true });
+    await page.locator('.topbar [data-action="toggle-lang"]').click();
+    await page.waitForFunction(() => document.documentElement.dir === 'rtl');
+
     await page.evaluate(() => {
       state.page = 'reports';
       state.c10ReportKind = 'stock-summary';
