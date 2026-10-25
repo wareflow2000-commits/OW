@@ -10,7 +10,7 @@ AS $$
     WHERE p.id=(SELECT auth.uid()) AND p.status='ACTIVE'
       AND (p_warehouse_id=ANY(COALESCE(p.assigned_warehouse_ids,ARRAY[]::uuid[]))
         OR (cardinality(COALESCE(p.assigned_warehouse_ids,ARRAY[]::uuid[]))=0
-            AND p.role IN ('SUPER_ADMIN','ADMIN','MANAGER')))
+            AND p.role IN ('SUPER_ADMIN','ADMIN')))
   ) END;
 $$;
 
@@ -103,7 +103,7 @@ AS $create_warehouse$
   SELECT EXISTS (
     SELECT 1 FROM public.profiles p
     WHERE p.id=(SELECT auth.uid()) AND p.status='ACTIVE'
-      AND p.role IN ('SUPER_ADMIN','ADMIN','MANAGER')
+      AND p.role IN ('SUPER_ADMIN','ADMIN')
       AND cardinality(COALESCE(p.assigned_warehouse_ids,ARRAY[]::uuid[]))=0
       AND public.current_user_has_permission('action:warehouse:manage')
   );
