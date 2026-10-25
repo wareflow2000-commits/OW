@@ -519,6 +519,7 @@ test('warehouse scope migration hardens RLS reads and SECURITY DEFINER write pat
   assert.match(migration, /DROP POLICY IF EXISTS transaction_audit_select_policy/);
   assert.match(migration, /DROP POLICY IF EXISTS audit_logs_select_policy/);
   assert.match(migration, /DROP POLICY IF EXISTS archive_movements_active_read/);
+  assert.match(migration, /archive_movements_manager_insert[\s\S]*?current_user_can_access_warehouse\(warehouse_id\)/);
   assert.match(migration, /DROP POLICY IF EXISTS stock_transfers_select_assigned/);
 });
 
