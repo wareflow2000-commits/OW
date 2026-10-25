@@ -35,13 +35,9 @@ Playwright Chromium runs against a temporary static HTTP server for the reposito
 
 The visual review found and corrected one real UI defect: the mobile bottom navigation was visible on desktop. The CSS now hides it by default and the Playwright test asserts it is hidden at desktop width. The test also scrolls to the end of the mobile document and verifies the last content block can be reached above the fixed navigation while the topbar stays anchored.
 
-## Merge gate
+## Historical merge gate (2026-10-24)
 
-Keep PR #4 as Draft until:
-1. The latest Playwright workflow passes after the desktop-nav fix.
-2. GraphQL exposure is actually disabled or intentionally accepted with documented owner approval.
-3. Leaked-password protection is enabled and rechecked.
-4. The remaining SECURITY DEFINER warnings receive a documented accept/fix decision.
+The initial review's PR #4 draft gate is retained only as historical context. The current release decision and unresolved blockers are recorded in the continuation audit below.
 
 ## Continuation audit — 2026-10-25 (live state, supersedes stale counts above)
 
