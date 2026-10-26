@@ -616,7 +616,7 @@ test('profile refresh purges assigned-admin cache scope without restricting the 
 
 test('role permissions modal restores configurable one-or-many warehouse scope', () => {
   assert.match(app, /v12-role-scope-mode/);
-  assert.match(app, /scope_mode:\s*'SELECTED'/);
+  assert.match(app, /id:'SELECTED',name:tr\(/);
   assert.match(app, /One or multiple selected warehouses/);
   assert.match(app, /admin_save_role_access_config/);
   assert.match(app, /role_warehouse/);
