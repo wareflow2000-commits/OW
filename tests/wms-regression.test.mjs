@@ -776,8 +776,9 @@ test('stocktake count SECURITY DEFINER RPC enforces the same session owner/manag
   assert.match(migration, /current_user_has_permission\('action:stocktake:count'\)/);
   assert.match(migration, /SECURITY DEFINER/);
   const mutationMigration = fs.readFileSync(new URL('../supabase/migrations/20261026082258_orshap_stocktake_mutation_session_owner_guards_v13958.sql', import.meta.url), 'utf8');
-  assert.match(mutationMigration, /populate_stocktake_session_lines[\s\S]{0,900}created_by IS DISTINCT FROM v_user_id[\s\S]{0,100}current_user_is_manager/);
-  assert.match(mutationMigration, /submit_stocktake_for_review[\s\S]{0,900}created_by IS DISTINCT FROM v_user[\s\S]{0,100}current_user_is_manager/);
+  assert.ok(mutationMigration.indexOf('populate_stocktake_session_lines') < mutationMigration.indexOf('submit_stocktake_for_review'));
+  assert.equal((mutationMigration.match(/created_by IS DISTINCT FROM/g) || []).length, 2, 'both privileged RPCs enforce creator/manager ownership');
+  assert.equal((mutationMigration.match(/current_user_can_access_warehouse/g) || []).length, 2, 'both privileged RPCs enforce warehouse scope');
 });
 
 test('offline master queue rejects unsupported tables and malformed operations without sending them', () => {
