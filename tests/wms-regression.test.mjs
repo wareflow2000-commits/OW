@@ -392,8 +392,8 @@ test('stocktake counts queue offline and replay through the database count RPC',
   const queueStart=app.indexOf('async function flushStocktakeCountQueue()');
   const queueEnd=app.indexOf('async function saveStocktakeCount(',queueStart);
   const queueSource=app.slice(queueStart,queueEnd);
-  assert.match(queueSource,/!c10AccessibleWarehouse\(session\.warehouse_id\)/,'queued count replay must check the current assigned warehouse');
-  assert.ok(queueSource.indexOf('!c10AccessibleWarehouse(session.warehouse_id)')<queueSource.indexOf("await rpc('save_stocktake_count'"),'scope check must happen before the RPC');
+  assert.match(queueSource,/!v13OfflineWarehouseAllowed\(session\.warehouse_id\)/,'queued count replay must require the single explicitly assigned offline warehouse');
+  assert.ok(queueSource.indexOf('!v13OfflineWarehouseAllowed(session.warehouse_id)')<queueSource.indexOf("await rpc('save_stocktake_count'"),'scope check must happen before the RPC');
   assert.match(app,/if\(!c10AccessibleWarehouse\(session\.warehouse_id\)\)throw new Error\('This stocktake session is outside your assigned warehouse scope\.'\)/);
   assert.ok(app.includes('await window.orshapV12?.refresh?.();await window.orshapV12?.syncOfflineMasterQueue?.();'),'manual sync refreshes current assignment before replay');
   assert.ok(app.includes('refreshV12().then(()=>Promise.all([flushOutbox(),flushStocktakeCountQueue()]))'),'online event refreshes current assignment before replay');
@@ -510,9 +510,9 @@ test('offline transaction outbox permits only receipts and issues; stocktake use
   assert.match(app, /function v13OfflineTransactionAllowed\(type\)\{return \['GRN','ISSUE'\]/);
   assert.match(app, /const offlineEligible=v13OfflineTransactionAllowed\(tx\.transaction_type\)/);
   assert.match(app, /if\(!c10AccessibleWarehouse\(tx\.warehouse_id\)\)throw new Error\(state\.lang==='ar'\?'المستودع المحدد خارج نطاق المستودعات المعيّنة لحسابك\.'/,'transaction entry fails closed before creating a local outbox record');
-  assert.match(app, /Offline mode supports goods receipts, issues, and stocktake counts only/);
+  assert.match(app, /Offline mode requires a single explicitly assigned warehouse and supports receipts\/issues only/);
   assert.match(app, /!v13OfflineTransactionAllowed\(tx\.transaction_type\)/);
-  assert.match(app, /function outboxOverlay\(\)[\s\S]*?c10AccessibleWarehouse\(tx\.warehouse_id\)/);
+  assert.match(app, /function outboxOverlay\(\)[\s\S]*?v13OfflineWarehouseAllowed\(tx\.warehouse_id\)/);
   assert.match(app, /orshap_stocktake_count_queue_v1/);
 });
 
@@ -666,4 +666,14 @@ test('transfer and return RPCs enforce configured warehouse role scope', () => {
   assert.match(migration, /current_user_can_access_warehouse\(v_transfer\.destination_warehouse_id\)/);
   assert.match(migration, /current_user_can_access_warehouse\(v_t\.source_warehouse_id\)/);
   assert.match(migration, /Expected exactly one patch anchor/,'migration must fail closed if live function definitions differ');
+});
+
+test('offline transaction and stocktake queues require exactly one explicitly assigned warehouse', () => {
+  assert.match(app, /function v13OfflineWarehouseAllowed\(id\)/);
+  assert.match(app, /assigned\.length===1&&assigned\[0\]===id&&c10AccessibleWarehouse\(id\)/);
+  assert.match(app, /v13OfflineTransactionAllowed\(tx\.transaction_type\)\|\|!v13OfflineWarehouseAllowed\(tx\.warehouse_id\)/);
+  assert.match(app, /Offline transaction requires exactly one explicitly assigned warehouse/);
+  assert.match(app, /!v13OfflineWarehouseAllowed\(session\.warehouse_id\)/);
+  assert.match(app, /Offline stocktake counts require exactly one explicitly assigned warehouse/);
+  assert.match(app, /Offline transaction is outside the current user or assigned warehouse scope|Offline transaction requires exactly one explicitly assigned warehouse/);
 });
