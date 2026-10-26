@@ -18,3 +18,16 @@ test('approval lock migration fails closed if the stock read anchor drifts', () 
   assert.match(migration, /Could not reconstruct approve_transaction definition/);
   assert.match(migration, /already has a stock-key advisory lock/);
 });
+
+test('internal transfer, receipt, and return helpers use effective role warehouse scope', () => {
+  assert.match(migration, /dispatch_stock_transfer_with_destination_warehouse_owner_aware/);
+  assert.match(migration, /receive_stock_transfer_quantity_at_shelf_v2/);
+  assert.match(migration, /confirm_stock_transfer_return/);
+  assert.match(migration, /receive_stock_transfer\(uuid\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(v_src\.warehouse_id\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(v_t\.destination_warehouse_id\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(v_t\.source_warehouse_id\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(v_transfer\.destination_warehouse_id\)/);
+  assert.match(migration, /Expected one legacy return-confirmation scope gate/);
+  assert.match(migration, /Expected one legacy receive scope gate/);
+});
