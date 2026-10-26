@@ -397,6 +397,12 @@ test('stocktake counts queue offline and replay through the database count RPC',
   assert.match(app,/if\(!c10AccessibleWarehouse\(session\.warehouse_id\)\)throw new Error\('This stocktake session is outside your assigned warehouse scope\.'\)/);
   assert.ok(app.includes('await window.orshapV12?.refresh?.();await window.orshapV12?.syncOfflineMasterQueue?.();'),'manual sync refreshes current assignment before replay');
   assert.ok(app.includes('refreshV12().then(()=>Promise.all([flushOutbox(),flushStocktakeCountQueue()]))'),'online event refreshes current assignment before replay');
+  const syncStart=app.indexOf("if(typeof c10DoSync==='function'){c10DoSync=async function()");
+  const syncEnd=app.indexOf('// Keep selected stocktake line IDs explicit',syncStart);
+  const syncSource=app.slice(syncStart,syncEnd);
+  assert.ok(syncSource.indexOf('await window.orshapV12?.refresh?.()')<syncSource.indexOf('await window.orshapOutbox?.retry?.()'),'unified Sync refreshes access before transaction replay');
+  assert.ok(syncSource.includes('await window.orshapV12?.syncStocktakeCountQueue?.()'),'unified Sync also retries the dedicated stocktake count queue');
+  assert.ok(syncSource.includes('stocktakeCountQueueList?.()'),'unified Sync reports remaining queued counts');
 });
 
 test('stocktake database migration excludes unrelated catalogue items from zero-balance lines', () => {
