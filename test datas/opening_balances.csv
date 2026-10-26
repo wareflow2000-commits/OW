@@ -1,4 +1,4 @@
-﻿"item_code","warehouse_code","storage_area_code","shelf_code","administrative_department_code","quantity","batch_no","expiry_date","notes"
+"item_code","warehouse_code","storage_area_code","shelf_code","administrative_department_code","quantity","batch_no","expiry_date","notes"
 "ITM-001","WH-01","SA-01-01","SH-01-01-01","DEP-01","57","OPEN-001","","رصيد افتتاحي تجريبي - لا يمثل بيانات إنتاجية"
 "ITM-002","WH-01","SA-01-01","SH-01-01-02","DEP-02","94","OPEN-002","","رصيد افتتاحي تجريبي - لا يمثل بيانات إنتاجية"
 "ITM-003","WH-01","SA-01-01","SH-01-01-03","DEP-03","31","OPEN-003","","رصيد افتتاحي تجريبي - لا يمثل بيانات إنتاجية"
