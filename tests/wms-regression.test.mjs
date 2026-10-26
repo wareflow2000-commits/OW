@@ -517,7 +517,7 @@ test('offline transaction outbox permits only receipts and issues; stocktake use
 });
 
 test('warehouse scope migration hardens RLS reads and SECURITY DEFINER write paths', () => {
-  const migration = fs.readFileSync(new URL('../supabase/migrations/20261025214500_orshap_enforce_assigned_warehouse_scope_v13958.sql', import.meta.url), 'utf8');
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026044604_orshap_enforce_assigned_warehouse_scope_v13958.sql', import.meta.url), 'utf8');
   assert.match(migration, /CREATE OR REPLACE FUNCTION public\.current_user_can_access_warehouse/);
   assert.match(migration, /trg_enforce_transaction_warehouse_scope/);
   assert.match(migration, /trg_enforce_stocktake_warehouse_scope/);
