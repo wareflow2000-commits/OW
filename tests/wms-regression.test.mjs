@@ -703,3 +703,16 @@ test('RLS writes for transactions and stocktake consistently enforce effective w
   assert.match(migration, /current_user_can_access_warehouse\(t\.warehouse_id\)/);
   assert.match(migration, /current_user_can_access_warehouse\(s\.warehouse_id\)/);
 });
+
+test('user administration exposes warehouse-name multi-select and persists selected warehouse IDs', () => {
+  const start=app.indexOf('function s81UserModal(id)');
+  const end=app.indexOf('function s81Units()',start);
+  assert.ok(start>=0&&end>start,'user modal and save functions exist');
+  const source=app.slice(start,end);
+  assert.match(source,/v5All\('warehouses'\)/,'choices come from warehouses available within current access scope');
+  assert.match(source,/name="user_assigned_warehouse"/,'each warehouse is a selectable checkbox');
+  assert.match(source,/selected\.has\(w\.id\)/,'existing assignments remain checked when editing');
+  assert.match(source,/querySelectorAll\('input\[name="user_assigned_warehouse"\]:checked'\)/,'save reads every selected warehouse');
+  assert.match(source,/assigned_warehouse_ids:assignedWarehouseIds/,'save persists a deduplicated ID array');
+  assert.doesNotMatch(source,/Assigned Warehouse IDs \(comma separated\)/,'no manual comma-separated IDs field remains');
+});
