@@ -347,7 +347,7 @@ async function v8SaveFacility(kind){
 function v8SelectWarehouse(id){state.v8FacilityWarehouseId=id;render()}
 function v8DeleteItem(id){const item=v5Find('items',id);if(!item)return;if(v5All('stock').some(s=>s.item_id===id&&Number(s.quantity)>0)){v8Err(state.lang==='ar'?'لا يمكن حذف صنف لديه رصيد. قم بتصفيره أولاً.':'Cannot delete an item with stock. Zero the stock first.');return}if(!confirm(state.lang==='ar'?'هل تريد حذف الصنف؟':'Delete this item?'))return;V5_DB.items=V5_DB.items.filter(x=>x.id!==id);v7Audit('DELETE','items',id,{code:item.code});v7Queue('items','DELETE',{id});v5Save();toast(state.lang==='ar'?'تم حذف الصنف':'Item deleted');render()}
 const __v8Handle=handleAction;
-handleAction=function(a){
+handleAction=async function(a){
   if(a==='v8-open-wh'){v8OpenFacility('warehouse');return} if(a==='v8-open-zone'||a==='open-zone'){v8Err(state.lang==='ar'?'المناطق القديمة مخفية؛ استخدم مناطق التخزين.':'Legacy zones are hidden; use storage areas.');return} if(a==='v8-open-area'){v8OpenFacility('storage_area');return} if(a.startsWith('v8-edit-area:')){v8OpenFacility('storage_area',a.split(':')[1]);return} if(a==='v8-open-category'||a==='v8-open-section'||a==='open-section'){v8OpenFacility('item_category');return} if(a.startsWith('v8-edit-category:')){v8OpenFacility('item_category',a.split(':')[1]);return} if(a==='v8-open-shelf'||a==='open-shelf'){v8OpenFacility('shelf');return} if(a.startsWith('v8-edit-shelf:')){v8OpenFacility('shelf',a.split(':')[1]);return}
   if(a.startsWith('v8-select-wh:')){v8SelectWarehouse(a.split(':')[1]);return}
   if(a==='open-item'||a==='v8-open-item'){v8ItemModal();return} if(a.startsWith('v8-edit-item:')){v8ItemModal(a.split(':')[1]);return} if(a.startsWith('v8-delete-item:')){v8DeleteItem(a.split(':')[1]);return}
