@@ -1,4 +1,4 @@
--- ORSHAP WMS v13.9.58: require owning department on every opening-balance line.
+-- ORSHAP WMS v13.9.58: require an active owning department on every opening-balance line.
 -- The dedicated opening-balance RPC already validates this; align generic RPC and approval.
 BEGIN;
 DO $patch$
