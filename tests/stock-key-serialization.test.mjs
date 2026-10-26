@@ -33,3 +33,23 @@ test('internal transfer, receipt, and return helpers use effective role warehous
   assert.match(migration, /Expected one legacy return-confirmation scope gate/);
   assert.match(migration, /Expected one legacy receive scope gate/);
 });
+
+test('RLS write policies for transactions and stocktake enforce effective warehouse scope', () => {
+  for (const policy of [
+    'stocktake_sessions_permission_insert',
+    'stocktake_sessions_permission_update',
+    'stocktake_sessions_permission_delete',
+    'transactions_permission_insert',
+    'transactions_permission_update',
+    'transactions_permission_delete',
+    'transaction_lines_permission_insert',
+    'transaction_lines_permission_update',
+    'transaction_lines_permission_delete',
+    'stocktake_lines_permission_insert',
+    'stocktake_lines_permission_update',
+    'stocktake_lines_permission_delete'
+  ]) assert.match(migration, new RegExp('ALTER POLICY ' + policy + ' ON public\\.'));
+  assert.match(migration, /current_user_can_access_warehouse\(warehouse_id\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(t\.warehouse_id\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(s\.warehouse_id\)/);
+});
