@@ -620,6 +620,7 @@ test('client warehouse predicate honors a server-derived empty or selected scope
   assert.ok(start>=0&&end>start,'warehouse access predicate exists');
   const source=app.slice(start,end);
   assert.match(source,/Array\.isArray\(p\.accessible_warehouse_ids\)/);
+  assert.match(source,/cachedProfile/,'offline predicate falls back to the cached profile scope');
   assert.match(source,/if\(accessible\)return id\?accessible\.includes\(id\):accessible\.length>0/);
 });
 test('role permissions modal restores configurable one-or-many warehouse scope', () => {
@@ -640,4 +641,15 @@ test('role warehouse scope migration defaults to inheritance and intersects expl
   assert.match(migration, /admin_save_role_access_config/);
   assert.match(migration, /admin_list_warehouses_for_role_scope/);
   assert.match(migration, /REVOKE ALL ON TABLE public\.role_warehouse_scopes FROM PUBLIC, anon, authenticated/);
+});
+
+
+test('effective warehouse scope RPC drives client filtering and fails closed', () => {
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026061000_orshap_expose_effective_warehouse_scope_v13958.sql', import.meta.url), 'utf8');
+  assert.match(migration, /current_user_accessible_warehouse_ids/);
+  assert.match(migration, /current_user_can_access_warehouse\(w\.id\)/);
+  assert.match(migration, /REVOKE ALL ON FUNCTION public\.current_user_accessible_warehouse_ids\(\) FROM PUBLIC, anon/);
+  assert.match(app, /scopeClient\.rpc\('current_user_accessible_warehouse_ids'\)/);
+  assert.match(app, /current\.accessible_warehouse_ids=\[\.\.\.new Set\(accessibleWarehouseIds\)\]/);
+  assert.match(app, /catch\(scopeError\)[\s\S]*accessibleWarehouseIds=\[\]/,'online scope refresh failure must fail closed');
 });
