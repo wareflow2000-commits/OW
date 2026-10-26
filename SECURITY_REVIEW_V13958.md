@@ -100,3 +100,22 @@ These were executed against the connected Supabase database inside explicit tran
 ### Remaining release blockers
 
 The prior blockers remain unchanged: the exposed `graphql_public.graphql` EXECUTE ACL requires an authorized owner or supported Supabase API setting to resolve, and leaked-password protection must be enabled in Supabase Auth settings. The Security Advisor also continues to report callable SECURITY DEFINER functions for per-function review; that warning alone does not prove each function is vulnerable.
+
+
+## 2026-10-26 follow-up: transaction, transfer, and stocktake RPC review
+
+### Live read-only checks
+- Recounted the current public schema: **82 SECURITY DEFINER functions**, **38 executable by authenticated**, **0 executable by anon**, and **0 missing a pinned search_path**. This supersedes the older inventory counts above; counts can change as migrations add functions.
+- Inspected the live definitions and effective EXECUTE ACLs for `create_transaction_with_lines`, `approve_transaction`, `reject_transaction`, `receive_stock_transfer`, both overloads of `receive_stock_transfer_quantity_at_shelf_v2`, and the stocktake create/review/settlement/close path.
+- `create_transaction_with_lines` validates active identity, transaction-type permission, warehouse scope, warehouse/area/shelf relationships, mandatory GRN supplier and ISSUE recipient metadata, and payload consistency on idempotent retries.
+- `approve_transaction` locks the transaction row, checks the transaction warehouse scope and pending status, blocks duplicate approval, enforces the configured approval/direct-execution policy, locks stock rows, validates shelf-to-warehouse membership, and rejects insufficient stock before outbound posting.
+- Transfer receipt is split deliberately: the legacy 5-argument receipt helper and one-shot wrapper are not executable by `authenticated`; the 6-argument operation-ID overload is the authenticated entry point and contains the receipt idempotency guard. The helper locks the transfer row and enforces destination-warehouse access, outstanding-quantity bounds, and destination shelf membership before posting the receipt.
+- Stocktake creation, review, settlement, and close entry points enforce the required permission and warehouse scope. Review prevents the creator/submitter from approving their own session; settlement requires an approved session and rejects selected lines affected by post-count stock movements. Internal settlement/close helpers are not executable by `authenticated`.
+- Compared stocktake RLS policies with `list_stocktake_lines_secure`: both currently allow reading stocktake records by permission and warehouse scope, so the secure listing RPC does not introduce a broader cross-warehouse read path than the SELECT policies. Mutation paths separately enforce creator/manager ownership where the corresponding RLS mutation policy does so.
+- These checks were read-only. No test transactions, stock rows, stocktake counts, settlements, or ledger entries were written during this follow-up.
+
+### CI after the latest documentation commit
+- Workflow run [40292167395](https://github.com/wareflow2000-commits/OW/actions/runs/40292167395) completed with conclusion **success** on `main` at `1240fe3bba5056260b55248c1d701b93569faa7c`. The JavaScript syntax/regression, layout/CSS contracts, critical RPC idempotency contracts, and desktop/mobile Playwright smoke tests all completed successfully.
+
+### Still unresolved
+The production release remains blocked by the existing GraphQL EXECUTE exposure and disabled leaked-password protection. The SECURITY DEFINER inventory is a review queue, not a claim that every function is vulnerable. A true simultaneous two-session over-issue race test remains unverified; do not mark it passed based on the serialized posting test.
