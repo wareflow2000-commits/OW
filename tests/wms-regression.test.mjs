@@ -735,14 +735,14 @@ test('user warehouse assignment uses server catalogue and supports multiple chec
 
 test('opening balances require an active owning department through create and approval paths', () => {
   const migration = fs.readFileSync(new URL('../supabase/migrations/20261026071000_orshap_require_opening_balance_owner_v13958.sql', import.meta.url), 'utf8');
-  assert.match(migration, /create_transaction_with_lines\\(uuid,jsonb,jsonb\\)/);
-  assert.match(migration, /approve_transaction\\(uuid\\)/);
-  assert.match(migration, /'OPENING_BALANCE'\\)/);
-  assert.match(migration, /administrative_departments d/);
-  assert.match(migration, /d\\.is_active = true/);
-  assert.match(migration, /Owning department is required for each stock transaction line/);
-  assert.match(migration, /WHEN 'OPENING_BALANCE' THEN current_user_has_permission\\('action:transaction:adjustment:create'\\)/);
-  assert.match(migration, /p\\.role IN \\('SUPER_ADMIN','MANAGER'\\)/);
-  assert.match(migration, /current_user_can_access_warehouse\\(warehouse_id\\)/);
-  assert.match(migration, /Expected exactly one owning-department validation anchor in %/);
+  assert.ok(migration.includes('create_transaction_with_lines(uuid,jsonb,jsonb)'));
+  assert.ok(migration.includes('approve_transaction(uuid)'));
+  assert.ok(migration.includes("'OPENING_BALANCE'"));
+  assert.ok(migration.includes('administrative_departments d'));
+  assert.ok(migration.includes('d.is_active = true'));
+  assert.ok(migration.includes('Owning department is required for each stock transaction line'));
+  assert.ok(migration.includes("WHEN 'OPENING_BALANCE' THEN current_user_has_permission('action:transaction:adjustment:create')"));
+  assert.ok(migration.includes("p.role IN ('SUPER_ADMIN','MANAGER')"));
+  assert.ok(migration.includes('current_user_can_access_warehouse(warehouse_id)'));
+  assert.ok(migration.includes('Expected exactly one owning-department validation anchor in %'));
 });
