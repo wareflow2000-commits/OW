@@ -703,3 +703,18 @@ test('RLS writes for transactions and stocktake consistently enforce effective w
   assert.match(migration, /current_user_can_access_warehouse\(t\.warehouse_id\)/);
   assert.match(migration, /current_user_can_access_warehouse\(s\.warehouse_id\)/);
 });
+
+test('user warehouse assignment uses server catalogue and supports multiple checkboxes', () => {
+  const start = app.indexOf('async function userWarehouseModal(id)');
+  const end = app.indexOf('async function saveUserWarehouses(id)', start);
+  assert.ok(start >= 0 && end > start, 'user warehouse assignment functions exist');
+  const source = app.slice(start, end);
+  assert.match(source, /rpc\('admin_list_warehouses_for_role_scope'\)/);
+  assert.match(source, /type="checkbox" name="wh"/);
+  assert.match(source, /Select all/);
+  assert.match(source, /Clear all/);
+  assert.match(app, /p_assigned_warehouse_ids:vals/);
+  assert.match(app, /v12-user-wh-all/);
+  assert.match(app, /v12-user-wh-none/);
+  assert.match(css, /\.v12-user-wh-option input\[type=checkbox\]\{width:18px!important/);
+});
