@@ -385,9 +385,10 @@ function c10Item(id){return v5Find('items',id)||{}}
 function c10Shelf(id){return v5Find('shelves',id)||{}}
 function c10TxLines(txId){return v5All('transaction_lines').filter(x=>x.transaction_id===txId)}
 function c10AccessibleWarehouse(id){
-  const p=state.session?.profile||state.session||{};
-  // This server-derived list incorporates role scope and any explicit user-level restriction.
-  // It is cached on the session profile for offline use; a present empty list means fail closed.
+  const sessionProfile=state.session?.profile||state.session||{};
+  // The profile table cache persists the last server-derived scope for offline sessions.
+  const cachedProfile=typeof v5Find==='function'&&state.session?.id?v5Find('profiles',state.session.id):null;
+  const p=Array.isArray(sessionProfile.accessible_warehouse_ids)?sessionProfile:(cachedProfile||sessionProfile);
   const accessible=Array.isArray(p.accessible_warehouse_ids)?p.accessible_warehouse_ids:null;
   if(accessible)return id?accessible.includes(id):accessible.length>0;
   const role=String(p.role||state.session?.role||'').toUpperCase();
