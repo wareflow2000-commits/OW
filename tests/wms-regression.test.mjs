@@ -389,7 +389,20 @@ test('stocktake counts queue offline and replay through the database count RPC',
   assert.ok(source.includes('if(!navigator.onLine){'));
   assert.ok(source.includes('queueStocktakeCount(line,n)'));
   assert.ok(source.includes('isUuid(line.id)||!isUuid(session.id)'));
-  assert.ok(app.includes('Promise.all([flushOutbox(),flushStocktakeCountQueue()])'));
+  const queueStart=app.indexOf('async function flushStocktakeCountQueue()');
+  const queueEnd=app.indexOf('async function saveStocktakeCount(',queueStart);
+  const queueSource=app.slice(queueStart,queueEnd);
+  assert.match(queueSource,/!c10AccessibleWarehouse\(session\.warehouse_id\)/,'queued count replay must check the current assigned warehouse');
+  assert.ok(queueSource.indexOf('!c10AccessibleWarehouse(session.warehouse_id)')<queueSource.indexOf("await rpc('save_stocktake_count'"),'scope check must happen before the RPC');
+  assert.match(app,/if\(!c10AccessibleWarehouse\(session\.warehouse_id\)\)throw new Error\('This stocktake session is outside your assigned warehouse scope\.'\)/);
+  assert.ok(app.includes('await window.orshapV12?.refresh?.();await window.orshapV12?.syncOfflineMasterQueue?.();'),'manual sync refreshes current assignment before replay');
+  assert.ok(app.includes('refreshV12().then(()=>Promise.all([flushOutbox(),flushStocktakeCountQueue()]))'),'online event refreshes current assignment before replay');
+  const syncStart=app.indexOf("if(typeof c10DoSync==='function'){c10DoSync=async function()");
+  const syncEnd=app.indexOf('// Keep selected stocktake line IDs explicit',syncStart);
+  const syncSource=app.slice(syncStart,syncEnd);
+  assert.ok(syncSource.indexOf('await window.orshapV12?.refresh?.()')<syncSource.indexOf('await window.orshapOutbox?.retry?.()'),'unified Sync refreshes access before transaction replay');
+  assert.ok(syncSource.includes('await window.orshapV12?.syncStocktakeCountQueue?.()'),'unified Sync also retries the dedicated stocktake count queue');
+  assert.ok(syncSource.includes('stocktakeCountQueueList?.()'),'unified Sync reports remaining queued counts');
 });
 
 test('stocktake database migration excludes unrelated catalogue items from zero-balance lines', () => {
@@ -521,6 +534,13 @@ test('warehouse scope migration hardens RLS reads and SECURITY DEFINER write pat
   assert.match(migration, /DROP POLICY IF EXISTS archive_movements_active_read/);
   assert.match(migration, /archive_movements_manager_insert[\s\S]*?current_user_can_access_warehouse\(warehouse_id\)/);
   assert.match(migration, /DROP POLICY IF EXISTS stock_transfers_select_assigned/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.wms_transfer_scope_context/);
+  assert.match(migration, /REVOKE ALL ON TABLE public\.wms_transfer_scope_context FROM PUBLIC, anon, authenticated/);
+  assert.match(migration, /c\.transaction_id=txid_current\(\) AND c\.actor_id=auth\.uid\(\)/);
+  assert.doesNotMatch(migration, /orshap\.transfer_scope_bypass/, 'a client-settable GUC must not authorize cross-warehouse writes');
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.reject_stock_transfer_receipt/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.finalize_stock_transfer_source_issue/);
+  assert.match(migration, /received\+returned quantities reconcile/);
 });
 
 
