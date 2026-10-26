@@ -347,12 +347,30 @@ function s81Print(){s81Ensure();return V5_DB.printConfig[0]||{id:'default',compa
 function s81Display(){s81Ensure();return V5_DB.displayConfig[0]||{id:'default',tableBorders:true,compactMode:false,showAnimations:true,defaultLanguage:'ar',themeColor:'#d4af37'};}
 function s81Toggle(key,label){const on=s81Setting(key,key==='USE_UNIT_CONVERSION'?'TRUE':'FALSE')==='TRUE';return `<div class="settings-row"><div><b>${esc(label)}</b><div class="muted">${state.lang==='ar'?(on?'مفعّل':'معطّل'):(on?'Enabled':'Disabled')}</div></div><button class="switch ${on?'on':''}" data-action="s81-toggle:${key}"><span></span></button></div>`}
 function s81Users(){s81Ensure();const q=(state.s81UserSearch||'').toLowerCase();return v5All('profiles').filter(u=>`${u.display_name||u.name||''} ${u.email||''}`.toLowerCase().includes(q));}
-function s81UserModal(id){
+async function s81UserModal(id){
   s81Ensure();
   const u=v5Find('profiles',id)||{};
   const roles=['SUPER_ADMIN','ADMIN','MANAGER','CLERK','AUDITOR'];
   const statuses=['ACTIVE','INACTIVE','PENDING','REJECTED'];
-  const warehouses=v5All('warehouses').slice().sort((a,b)=>String(a.name||a.code||'').localeCompare(String(b.name||b.code||'')));
+  const actorRole=String(state.session?.profile?.role||state.session?.role||'').toUpperCase();
+  let warehouses=[];
+  if(actorRole==='SUPER_ADMIN'){
+    try{
+      if(!window.orshapSupabaseReady)throw new Error('Connect to Supabase to load the complete warehouse list.');
+      await window.orshapSupabaseReady;
+      const client=window.orshapSupabase;
+      if(!client?.rpc)throw new Error('Supabase is not available.');
+      const result=await client.rpc('admin_list_warehouses_for_role_scope');
+      if(result.error)throw result.error;
+      warehouses=result.data||[];
+    }catch(e){
+      v8Err(state.lang==='ar'?'تعذر تحميل جميع المستودعات. تحقق من الاتصال وصلاحية المدير الأعلى.':'Could not load all warehouses. Check connectivity and super-admin authorization.');
+      return;
+    }
+  }else{
+    warehouses=v5All('warehouses').slice();
+  }
+  warehouses=warehouses.slice().sort((a,b)=>String(a.name||a.code||'').localeCompare(String(b.name||b.code||'')));
   const selected=new Set(Array.isArray(u.assigned_warehouse_ids)?u.assigned_warehouse_ids:[]);
   const warehouseLabel=state.lang==='ar'?'المستودعات المخصصة للمستخدم':'Warehouses assigned to this user';
   const warehouseHelp=state.lang==='ar'?'يمكن تحديد مستودع واحد أو عدة مستودعات. التعيين هنا قيد إضافي على صلاحيات الدور.':'Select one or multiple warehouses. User assignments further restrict the role scope.';
@@ -366,9 +384,12 @@ function s81SaveUser(){
   const f=document.getElementById('s81-user-form');
   if(!f)return;
   const o=Object.fromEntries(new FormData(f).entries());
-  const assignedWarehouseIds=[...new Set([...f.querySelectorAll('input[name="user_assigned_warehouse"]:checked')].map(x=>x.value).filter(Boolean))];
   const id=state.s81EditingUser||uid();
   const old=v5Find('profiles',id);
+  const visibleWarehouseIds=new Set([...f.querySelectorAll('input[name="user_assigned_warehouse"]')].map(x=>x.value));
+  const retainedOutsideScope=(Array.isArray(old?.assigned_warehouse_ids)?old.assigned_warehouse_ids:[]).filter(wid=>!visibleWarehouseIds.has(wid));
+  const selectedWarehouseIds=[...f.querySelectorAll('input[name="user_assigned_warehouse"]:checked')].map(x=>x.value).filter(Boolean);
+  const assignedWarehouseIds=[...new Set([...retainedOutsideScope,...selectedWarehouseIds])];
   const u={...(old||{}),id,display_name:(o.display_name||'').trim(),name:(o.display_name||'').trim(),email:(o.email||'').trim(),role:o.role,status:o.status,phone:o.phone||'',assigned_warehouse_ids:assignedWarehouseIds,can_approve_without_workflow:f.querySelector('[name="can_approve_without_workflow"]').checked,updated_at:v8Now(),created_at:old?.created_at||v8Now()};
   if(old)Object.assign(old,u);else V5_DB.profiles.push(u);
   v7Audit(old?'UPDATE':'INSERT','profiles',id,u);
