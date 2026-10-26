@@ -23,6 +23,8 @@ test('internal transfer, receipt, and return helpers use effective role warehous
   assert.match(migration, /dispatch_stock_transfer_with_destination_warehouse_owner_aware/);
   assert.match(migration, /receive_stock_transfer_quantity_at_shelf_v2/);
   assert.match(migration, /confirm_stock_transfer_return/);
+  assert.match(migration, /confirm_stock_transfer_return_v2\\(uuid\\)/);
+  assert.match(migration, /Expected one return-confirmation wrapper anchor/);
   assert.match(migration, /receive_stock_transfer\(uuid\)/);
   assert.match(migration, /current_user_can_access_warehouse\(v_src\.warehouse_id\)/);
   assert.match(migration, /current_user_can_access_warehouse\(v_t\.destination_warehouse_id\)/);
