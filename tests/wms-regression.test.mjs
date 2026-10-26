@@ -509,6 +509,7 @@ test('stocktake session list and active session are restricted to accessible war
 test('offline transaction outbox permits only receipts and issues; stocktake uses its own queue', () => {
   assert.match(app, /function v13OfflineTransactionAllowed\(type\)\{return \['GRN','ISSUE'\]/);
   assert.match(app, /const offlineEligible=v13OfflineTransactionAllowed\(tx\.transaction_type\)/);
+  assert.match(app, /if\(!c10AccessibleWarehouse\(tx\.warehouse_id\)\)throw new Error\(state\.lang==='ar'\?'المستودع المحدد خارج نطاق المستودعات المعيّنة لحسابك\.'/,'transaction entry fails closed before creating a local outbox record');
   assert.match(app, /Offline mode supports goods receipts, issues, and stocktake counts only/);
   assert.match(app, /!v13OfflineTransactionAllowed\(tx\.transaction_type\)/);
   assert.match(app, /function outboxOverlay\(\)[\s\S]*?c10AccessibleWarehouse\(tx\.warehouse_id\)/);
