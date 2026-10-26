@@ -715,3 +715,24 @@ test('opening balances require an active owning department through create and ap
   assert.match(migration, /current_user_can_access_warehouse\(warehouse_id\)/);
   assert.match(migration, /Expected exactly one owning-department validation anchor in %/);
 });
+
+test('offline warehouse predicate permits only the single explicit user assignment within effective scope', () => {
+  const start = app.indexOf('function v13OfflineWarehouseAllowed(id){');
+  const end = app.indexOf('\nfunction c10Audit', start);
+  assert.ok(start >= 0 && end > start, 'offline warehouse predicate must be present');
+  const source = app.slice(start, end) + '\nthis.offlineWarehouseAllowed = v13OfflineWarehouseAllowed;';
+  const make = (sessionProfile, cachedProfile, effectiveIds) => {
+    const sandbox = {
+      state: { session: { id: 'test-user', profile: sessionProfile } },
+      v5Find: () => cachedProfile,
+      c10AccessibleWarehouse: id => effectiveIds.includes(id)
+    };
+    vm.runInNewContext(source, sandbox);
+    return sandbox.offlineWarehouseAllowed;
+  };
+  assert.equal(make({assigned_warehouse_ids:['w1']}, null, ['w1'])('w1'), true);
+  assert.equal(make({assigned_warehouse_ids:['w1','w2']}, null, ['w1','w2'])('w1'), false);
+  assert.equal(make({assigned_warehouse_ids:[]}, null, ['w1'])('w1'), false);
+  assert.equal(make({assigned_warehouse_ids:['w1']}, null, [])('w1'), false);
+  assert.equal(make({assigned_warehouse_ids:[]}, {assigned_warehouse_ids:['w1']}, ['w1'])('w1'), true);
+});
