@@ -667,3 +667,13 @@ test('transfer and return RPCs enforce configured warehouse role scope', () => {
   assert.match(migration, /current_user_can_access_warehouse\(v_t\.source_warehouse_id\)/);
   assert.match(migration, /Expected exactly one patch anchor/,'migration must fail closed if live function definitions differ');
 });
+
+test('offline transaction and stocktake queues require exactly one explicitly assigned warehouse', () => {
+  assert.match(app, /function v13OfflineWarehouseAllowed\(id\)/);
+  assert.match(app, /assigned\.length===1&&assigned\[0\]===id&&c10AccessibleWarehouse\(id\)/);
+  assert.match(app, /v13OfflineTransactionAllowed\(tx\.transaction_type\)\|\|!v13OfflineWarehouseAllowed\(tx\.warehouse_id\)/);
+  assert.match(app, /Offline transaction requires exactly one explicitly assigned warehouse/);
+  assert.match(app, /!v13OfflineWarehouseAllowed\(session\.warehouse_id\)/);
+  assert.match(app, /Offline stocktake counts require exactly one explicitly assigned warehouse/);
+  assert.match(app, /Offline transaction is outside the current user or assigned warehouse scope|Offline transaction requires exactly one explicitly assigned warehouse/);
+});
