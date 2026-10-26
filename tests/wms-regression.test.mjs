@@ -547,7 +547,7 @@ test('warehouse scope migration hardens RLS reads and SECURITY DEFINER write pat
 
 
 test('approval and rejection RPCs enforce explicit warehouse assignment for privileged roles', () => {
-  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026050000_orshap_transaction_rpc_enforce_assigned_warehouse_scope_v13958.sql', import.meta.url), 'utf8');
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026045733_orshap_transaction_rpc_enforce_assigned_warehouse_scope_v13958.sql', import.meta.url), 'utf8');
   const helperAcl = fs.readFileSync(new URL('../supabase/migrations/20261026044833_restrict_assigned_warehouse_scope_helper_execution_v13958.sql', import.meta.url), 'utf8');
   assert.match(migration, /IF NOT public\.current_user_can_access_warehouse\(v_tx_rec\.warehouse_id\)/);
   assert.match(migration, /IF NOT public\.current_user_can_access_warehouse\(v_tx\.warehouse_id\)/);
