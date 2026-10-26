@@ -108,4 +108,39 @@ BEGIN
   EXECUTE v_new_def;
 END
 $scope_patch$;
+DO $wrapper_scope$
+DECLARE
+  v_body text;
+  v_new_body text;
+  v_def text;
+  v_new_def text;
+  v_anchor text := $a$  -- The underlying routine performs permission, warehouse-scope, row-lock,
+  -- stock-posting, and ledger checks. Keep both steps in this transaction.
+  v_result := public.confirm_stock_transfer_return(p_transfer_id);$a$;
+  v_replacement text := $b$  -- Fail closed at the exposed RPC boundary as well as in the internal posting routine.
+  IF EXISTS (SELECT 1 FROM public.stock_transfers t WHERE t.id=p_transfer_id)
+     AND NOT EXISTS (
+       SELECT 1 FROM public.stock_transfers t
+       WHERE t.id=p_transfer_id
+         AND public.current_user_can_access_warehouse(t.source_warehouse_id)
+     ) THEN
+    RAISE EXCEPTION 'User is not assigned to the sending warehouse' USING ERRCODE='42501';
+  END IF;
+
+  -- The underlying routine performs permission, warehouse-scope, row-lock,
+  -- stock-posting, and ledger checks. Keep both steps in this transaction.
+  v_result := public.confirm_stock_transfer_return(p_transfer_id);$b$;
+  v_count integer;
+BEGIN
+  SELECT p.prosrc INTO v_body FROM pg_proc p
+  WHERE p.oid='public.confirm_stock_transfer_return_v2(uuid)'::regprocedure;
+  v_count := (length(v_body)-length(replace(v_body,v_anchor,'')))/length(v_anchor);
+  IF v_count<>1 THEN RAISE EXCEPTION 'Expected one return-confirmation wrapper anchor, found %',v_count; END IF;
+  v_new_body:=replace(v_body,v_anchor,v_replacement);
+  v_def:=pg_get_functiondef('public.confirm_stock_transfer_return_v2(uuid)'::regprocedure);
+  v_new_def:=replace(v_def,v_body,v_new_body);
+  IF v_new_def=v_def THEN RAISE EXCEPTION 'Could not reconstruct confirm_stock_transfer_return_v2'; END IF;
+  EXECUTE v_new_def;
+END
+$wrapper_scope$;
 COMMIT;
