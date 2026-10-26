@@ -645,7 +645,7 @@ test('role warehouse scope migration defaults to inheritance and intersects expl
 
 
 test('effective warehouse scope RPC drives client filtering and fails closed', () => {
-  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026061000_orshap_expose_effective_warehouse_scope_v13958.sql', import.meta.url), 'utf8');
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026060145_orshap_expose_effective_warehouse_scope_v13958.sql', import.meta.url), 'utf8');
   assert.match(migration, /current_user_accessible_warehouse_ids/);
   assert.match(migration, /current_user_can_access_warehouse\(w\.id\)/);
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.current_user_accessible_warehouse_ids\(\) FROM PUBLIC, anon/);
@@ -656,7 +656,7 @@ test('effective warehouse scope RPC drives client filtering and fails closed', (
 
 
 test('transfer and return RPCs enforce configured warehouse role scope', () => {
-  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026062000_orshap_enforce_role_scope_transfer_rpcs_v13958.sql', import.meta.url), 'utf8');
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026060257_orshap_enforce_role_scope_transfer_rpcs_v13958.sql', import.meta.url), 'utf8');
   assert.match(migration, /dispatch_stock_transfer_order_v2/);
   assert.match(migration, /receive_stock_transfer_quantity_at_shelf_v2/);
   assert.match(migration, /review_stock_transfer_return_request/);
