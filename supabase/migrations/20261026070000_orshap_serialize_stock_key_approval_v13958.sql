@@ -143,4 +143,155 @@ BEGIN
   EXECUTE v_new_def;
 END
 $wrapper_scope$;
+-- RLS write policies must use the same effective scope as SECURITY DEFINER RPCs.
+-- Remove privileged-role bypasses that were tied only to assigned_warehouse_ids.
+ALTER POLICY stocktake_sessions_permission_insert ON public.stocktake_sessions
+  WITH CHECK (
+    created_by = (SELECT auth.uid())
+    AND status = 'IN_PROGRESS'
+    AND current_user_has_permission('action:stocktake:start')
+    AND current_user_can_access_warehouse(warehouse_id)
+  );
+ALTER POLICY stocktake_sessions_permission_update ON public.stocktake_sessions
+  USING (
+    status = 'IN_PROGRESS'
+    AND (created_by = (SELECT auth.uid()) OR current_user_is_manager())
+    AND current_user_has_permission('action:stocktake:start')
+    AND current_user_can_access_warehouse(warehouse_id)
+  )
+  WITH CHECK (
+    status = 'IN_PROGRESS'
+    AND (created_by = (SELECT auth.uid()) OR current_user_is_manager())
+    AND current_user_has_permission('action:stocktake:start')
+    AND current_user_can_access_warehouse(warehouse_id)
+  );
+ALTER POLICY stocktake_sessions_permission_delete ON public.stocktake_sessions
+  USING (
+    status = 'IN_PROGRESS'
+    AND current_user_is_manager()
+    AND current_user_can_access_warehouse(warehouse_id)
+  );
+
+ALTER POLICY transactions_permission_insert ON public.transactions
+  WITH CHECK (
+    created_by = (SELECT auth.uid())
+    AND status = 'PENDING_APPROVAL'
+    AND CASE transaction_type
+      WHEN 'GRN' THEN current_user_has_permission('action:transaction:grn:create')
+      WHEN 'RETURN_FROM_USAGE' THEN current_user_has_permission('action:transaction:grn:create')
+      WHEN 'RETURN_FROM_CUSTOMER' THEN current_user_has_permission('action:transaction:grn:create')
+      WHEN 'ISSUE' THEN current_user_has_permission('action:transaction:issue:create')
+      WHEN 'RETURN_TO_SUPPLIER' THEN current_user_has_permission('action:transaction:issue:create')
+      WHEN 'ADJUSTMENT_IN' THEN current_user_has_permission('action:transaction:adjustment:create')
+      WHEN 'ADJUSTMENT_OUT' THEN current_user_has_permission('action:transaction:adjustment:create')
+      WHEN 'OPENING_BALANCE' THEN current_user_is_manager()
+      ELSE false
+    END
+    AND current_user_can_access_warehouse(warehouse_id)
+  );
+ALTER POLICY transactions_permission_update ON public.transactions
+  USING (
+    status = 'PENDING_APPROVAL'
+    AND (created_by = (SELECT auth.uid()) OR current_user_is_manager())
+    AND current_user_can_access_warehouse(warehouse_id)
+  )
+  WITH CHECK (
+    status = 'PENDING_APPROVAL'
+    AND (created_by = (SELECT auth.uid()) OR current_user_is_manager())
+    AND current_user_can_access_warehouse(warehouse_id)
+  );
+ALTER POLICY transactions_permission_delete ON public.transactions
+  USING (
+    status = 'PENDING_APPROVAL'
+    AND (created_by = (SELECT auth.uid()) OR current_user_is_manager())
+    AND current_user_can_access_warehouse(warehouse_id)
+  );
+
+ALTER POLICY transaction_lines_permission_insert ON public.transaction_lines
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.transactions t
+      WHERE t.id = transaction_lines.transaction_id
+        AND t.status = 'PENDING_APPROVAL'
+        AND (t.created_by = (SELECT auth.uid()) OR current_user_is_manager())
+        AND current_user_can_access_warehouse(t.warehouse_id)
+    )
+  );
+ALTER POLICY transaction_lines_permission_update ON public.transaction_lines
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.transactions t
+      WHERE t.id = transaction_lines.transaction_id
+        AND t.status = 'PENDING_APPROVAL'
+        AND (t.created_by = (SELECT auth.uid()) OR current_user_is_manager())
+        AND current_user_can_access_warehouse(t.warehouse_id)
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.transactions t
+      WHERE t.id = transaction_lines.transaction_id
+        AND t.status = 'PENDING_APPROVAL'
+        AND (t.created_by = (SELECT auth.uid()) OR current_user_is_manager())
+        AND current_user_can_access_warehouse(t.warehouse_id)
+    )
+  );
+ALTER POLICY transaction_lines_permission_delete ON public.transaction_lines
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.transactions t
+      WHERE t.id = transaction_lines.transaction_id
+        AND t.status = 'PENDING_APPROVAL'
+        AND (t.created_by = (SELECT auth.uid()) OR current_user_is_manager())
+        AND current_user_can_access_warehouse(t.warehouse_id)
+    )
+  );
+
+ALTER POLICY stocktake_lines_permission_insert ON public.stocktake_lines
+  WITH CHECK (
+    current_user_has_permission('action:stocktake:start')
+    AND EXISTS (
+      SELECT 1 FROM public.stocktake_sessions s
+      WHERE s.id = stocktake_lines.session_id
+        AND s.status = 'IN_PROGRESS'
+        AND (s.created_by = (SELECT auth.uid()) OR current_user_is_manager())
+        AND current_user_can_access_warehouse(s.warehouse_id)
+    )
+  );
+ALTER POLICY stocktake_lines_permission_update ON public.stocktake_lines
+  USING (
+    current_user_has_permission('action:stocktake:start')
+    AND COALESCE(is_settled, false) = false
+    AND EXISTS (
+      SELECT 1 FROM public.stocktake_sessions s
+      WHERE s.id = stocktake_lines.session_id
+        AND s.status = 'IN_PROGRESS'
+        AND (s.created_by = (SELECT auth.uid()) OR current_user_is_manager())
+        AND current_user_can_access_warehouse(s.warehouse_id)
+    )
+  )
+  WITH CHECK (
+    current_user_has_permission('action:stocktake:start')
+    AND COALESCE(is_settled, false) = false
+    AND EXISTS (
+      SELECT 1 FROM public.stocktake_sessions s
+      WHERE s.id = stocktake_lines.session_id
+        AND s.status = 'IN_PROGRESS'
+        AND (s.created_by = (SELECT auth.uid()) OR current_user_is_manager())
+        AND current_user_can_access_warehouse(s.warehouse_id)
+    )
+  );
+ALTER POLICY stocktake_lines_permission_delete ON public.stocktake_lines
+  USING (
+    current_user_has_permission('action:stocktake:start')
+    AND COALESCE(is_settled, false) = false
+    AND EXISTS (
+      SELECT 1 FROM public.stocktake_sessions s
+      WHERE s.id = stocktake_lines.session_id
+        AND s.status = 'IN_PROGRESS'
+        AND (s.created_by = (SELECT auth.uid()) OR current_user_is_manager())
+        AND current_user_can_access_warehouse(s.warehouse_id)
+    )
+  );
+
 COMMIT;
