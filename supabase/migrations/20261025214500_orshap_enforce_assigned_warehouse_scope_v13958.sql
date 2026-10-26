@@ -14,38 +14,46 @@ AS $$
   ) END;
 $$;
 
+-- Private server-side context for narrowly permitted cross-warehouse transfer lifecycle writes.
+-- Authenticated clients can set arbitrary custom GUC values, so a GUC alone is not an authorization proof.
+CREATE TABLE IF NOT EXISTS public.wms_transfer_scope_context (
+  transaction_id bigint PRIMARY KEY,
+  transfer_id uuid NOT NULL,
+  actor_id uuid NOT NULL,
+  context_type text NOT NULL CHECK (context_type IN ('REJECT_RECEIPT','FINALIZE_SOURCE')),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.wms_transfer_scope_context ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.wms_transfer_scope_context FROM PUBLIC, anon, authenticated;
+
 -- Transfer lifecycle exception: a destination-assigned user may reject receipt and return stock to source,
 -- and may finalize the source issue after received+returned quantities reconcile. The only cross-scope
 -- context is set inside the validated SECURITY DEFINER RPCs below; triggers verify the exact transfer,
 -- endpoint assignment, reference/status, and quantity reconciliation before allowing that one write.
 CREATE OR REPLACE FUNCTION public.enforce_transaction_warehouse_scope()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
-AS $$
-DECLARE v_transfer_id text; v_transfer_exception boolean := false;
+AS $
+DECLARE v_transfer_id uuid; v_context_type text; v_transfer_exception boolean := false;
 BEGIN
   IF auth.uid() IS NULL THEN RETURN NEW; END IF;
-  v_transfer_id := NULLIF(current_setting('orshap.transfer_scope_bypass',true),'');
+  SELECT c.transfer_id,c.context_type INTO v_transfer_id,v_context_type
+    FROM public.wms_transfer_scope_context c
+    WHERE c.transaction_id=txid_current() AND c.actor_id=auth.uid();
   IF v_transfer_id IS NOT NULL THEN
-    IF TG_OP='INSERT' AND NEW.transaction_type='ADJUSTMENT_IN' AND NEW.status='APPROVED'
-       AND EXISTS (
-         SELECT 1 FROM public.stock_transfers st
-         WHERE st.id::text=v_transfer_id
-           AND NEW.reference_no=st.reference_no||'-REJECT-RETURN'
-           AND NEW.warehouse_id=st.source_warehouse_id
-           AND st.status='IN_TRANSIT' AND st.rejection_transaction_id IS NULL
-           AND public.current_user_can_access_warehouse(st.destination_warehouse_id)
-       ) THEN
+    IF TG_OP='INSERT' AND v_context_type='REJECT_RECEIPT' AND NEW.transaction_type='ADJUSTMENT_IN' AND NEW.status='APPROVED'
+       AND EXISTS (SELECT 1 FROM public.stock_transfers st
+         WHERE st.id=v_transfer_id AND NEW.reference_no=st.reference_no||'-REJECT-RETURN'
+           AND NEW.warehouse_id=st.source_warehouse_id AND st.status='IN_TRANSIT'
+           AND st.rejection_transaction_id IS NULL
+           AND public.current_user_can_access_warehouse(st.destination_warehouse_id)) THEN
       v_transfer_exception := true;
-    ELSIF TG_OP='UPDATE' AND OLD.status='PENDING_RECEIPT' AND NEW.status='APPROVED'
-       AND EXISTS (
-         SELECT 1 FROM public.stock_transfers st
-         WHERE st.id::text=v_transfer_id
-           AND st.source_transaction_id=OLD.id
+    ELSIF TG_OP='UPDATE' AND v_context_type='FINALIZE_SOURCE' AND OLD.status='PENDING_RECEIPT' AND NEW.status='APPROVED'
+       AND EXISTS (SELECT 1 FROM public.stock_transfers st
+         WHERE st.id=v_transfer_id AND st.source_transaction_id=OLD.id
            AND NEW.warehouse_id=st.source_warehouse_id
            AND COALESCE(st.received_quantity,0)+COALESCE(st.returned_quantity,0)>=st.quantity
            AND (public.current_user_can_access_warehouse(st.source_warehouse_id)
-                OR public.current_user_can_access_warehouse(st.destination_warehouse_id))
-       ) THEN
+                OR public.current_user_can_access_warehouse(st.destination_warehouse_id))) THEN
       v_transfer_exception := true;
     END IF;
   END IF;
@@ -57,27 +65,28 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$;
+$;
 DROP TRIGGER IF EXISTS trg_enforce_transaction_warehouse_scope ON public.transactions;
 CREATE TRIGGER trg_enforce_transaction_warehouse_scope BEFORE INSERT OR UPDATE ON public.transactions
 FOR EACH ROW EXECUTE FUNCTION public.enforce_transaction_warehouse_scope();
 
 CREATE OR REPLACE FUNCTION public.enforce_transaction_line_warehouse_scope()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
-AS $$
-DECLARE v_tx_id uuid; v_warehouse_id uuid; v_transfer_id text;
+AS $
+DECLARE v_tx_id uuid; v_warehouse_id uuid; v_transfer_id uuid; v_context_type text;
 BEGIN
   IF auth.uid() IS NULL THEN IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW; END IF;
   v_tx_id := CASE WHEN TG_OP='DELETE' THEN OLD.transaction_id ELSE NEW.transaction_id END;
   SELECT t.warehouse_id INTO v_warehouse_id FROM public.transactions t WHERE t.id=v_tx_id;
   IF v_warehouse_id IS NULL AND TG_OP='DELETE' THEN RETURN OLD; END IF;
   IF v_warehouse_id IS NULL OR NOT public.current_user_can_access_warehouse(v_warehouse_id) THEN
-    v_transfer_id := NULLIF(current_setting('orshap.transfer_scope_bypass',true),'');
-    IF TG_OP='INSERT' AND v_transfer_id IS NOT NULL AND EXISTS (
-      SELECT 1 FROM public.transactions t JOIN public.stock_transfers st ON st.id::text=v_transfer_id
+    SELECT c.transfer_id,c.context_type INTO v_transfer_id,v_context_type
+      FROM public.wms_transfer_scope_context c
+      WHERE c.transaction_id=txid_current() AND c.actor_id=auth.uid();
+    IF TG_OP='INSERT' AND v_context_type='REJECT_RECEIPT' AND v_transfer_id IS NOT NULL AND EXISTS (
+      SELECT 1 FROM public.transactions t JOIN public.stock_transfers st ON st.id=v_transfer_id
       WHERE t.id=v_tx_id AND t.transaction_type='ADJUSTMENT_IN' AND t.status='APPROVED'
-        AND t.reference_no=st.reference_no||'-REJECT-RETURN'
-        AND t.warehouse_id=st.source_warehouse_id
+        AND t.reference_no=st.reference_no||'-REJECT-RETURN' AND t.warehouse_id=st.source_warehouse_id
         AND st.status='IN_TRANSIT' AND st.rejection_transaction_id IS NULL
         AND public.current_user_can_access_warehouse(st.destination_warehouse_id)
     ) THEN RETURN NEW; END IF;
@@ -88,7 +97,7 @@ BEGIN
   END IF;
   IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW;
 END;
-$$;
+$;
 DROP TRIGGER IF EXISTS trg_enforce_transaction_line_warehouse_scope ON public.transaction_lines;
 CREATE TRIGGER trg_enforce_transaction_line_warehouse_scope BEFORE INSERT OR UPDATE OR DELETE ON public.transaction_lines
 FOR EACH ROW EXECUTE FUNCTION public.enforce_transaction_line_warehouse_scope();
@@ -339,12 +348,12 @@ BEGIN
  PERFORM pg_advisory_xact_lock(hashtextextended(v_lock_key,0));
  SELECT quantity INTO v_before FROM public.stock WHERE item_id=v_transfer.item_id AND shelf_id=v_transfer.source_shelf_id AND batch_no=v_transfer.batch_no AND storage_area_id=v_area AND administrative_department_id=v_owner FOR UPDATE;
  v_before:=COALESCE(v_before,0); v_after:=v_before+v_transfer.quantity; v_tx:=gen_random_uuid();
- PERFORM set_config('orshap.transfer_scope_bypass',p_transfer_id::text,true);
+ INSERT INTO public.wms_transfer_scope_context(transaction_id,transfer_id,actor_id,context_type) VALUES(txid_current(),p_transfer_id,v_user,'REJECT_RECEIPT');
  INSERT INTO public.transactions(id,reference_no,transaction_type,status,warehouse_id,storage_area_id,notes,created_by)
  VALUES(v_tx,v_transfer.reference_no||'-REJECT-RETURN','ADJUSTMENT_IN','APPROVED',v_shelf.warehouse_id,v_area,'Rejected transfer receipt; goods returned to source. Reason: '||btrim(p_reason),v_user);
  INSERT INTO public.transaction_lines(transaction_id,item_id,shelf_id,administrative_department_id,quantity,balance_before,balance_after,batch_no,expiry_date,storage_area_id,notes)
  VALUES(v_tx,v_transfer.item_id,v_transfer.source_shelf_id,v_owner,v_transfer.quantity,v_before,v_after,v_transfer.batch_no,v_transfer.expiry_date,v_area,'Transfer='||p_transfer_id::text||'; direction=REJECTED_RETURN; reason='||btrim(p_reason));
- PERFORM set_config('orshap.transfer_scope_bypass','',true);
+ DELETE FROM public.wms_transfer_scope_context WHERE transaction_id=txid_current() AND transfer_id=p_transfer_id AND actor_id=v_user AND context_type='REJECT_RECEIPT';
  INSERT INTO public.stock(item_id,shelf_id,administrative_department_id,quantity,batch_no,expiry_date,storage_area_id,updated_at)
  VALUES(v_transfer.item_id,v_transfer.source_shelf_id,v_owner,v_after,v_transfer.batch_no,v_transfer.expiry_date,v_area,now())
  ON CONFLICT (item_id, shelf_id, batch_no, administrative_department_id) DO UPDATE SET quantity=EXCLUDED.quantity,expiry_date=COALESCE(EXCLUDED.expiry_date,public.stock.expiry_date),storage_area_id=COALESCE(EXCLUDED.storage_area_id,public.stock.storage_area_id),updated_at=now();
@@ -385,12 +394,12 @@ AS $function$
                                                              RAISE EXCEPTION 'Source issue transaction is missing for transfer %',p_transfer_id;
                                                                END IF;
 
-                                                                 PERFORM set_config('orshap.transfer_scope_bypass',p_transfer_id::text,true);
+                                                                 INSERT INTO public.wms_transfer_scope_context(transaction_id,transfer_id,actor_id,context_type) VALUES(txid_current(),p_transfer_id,auth.uid(),'FINALIZE_SOURCE');
                                                                  UPDATE public.transactions
                                                                       SET status='APPROVED'
                                                                          WHERE id=v_t.source_transaction_id AND status='PENDING_RECEIPT';
                                                                  v_updated := FOUND;
-                                                                 PERFORM set_config('orshap.transfer_scope_bypass','',true);
+                                                                 DELETE FROM public.wms_transfer_scope_context WHERE transaction_id=txid_current() AND transfer_id=p_transfer_id AND actor_id=auth.uid() AND context_type='FINALIZE_SOURCE';
 
                                                                            IF v_updated THEN
                                                                                UPDATE public.transaction_ledger
@@ -470,12 +479,12 @@ BEGIN
  PERFORM pg_advisory_xact_lock(hashtextextended(v_lock_key,0));
  SELECT quantity INTO v_before FROM public.stock WHERE item_id=v_transfer.item_id AND shelf_id=v_transfer.source_shelf_id AND batch_no=v_transfer.batch_no AND storage_area_id=v_area AND administrative_department_id=v_owner FOR UPDATE;
  v_before:=COALESCE(v_before,0); v_after:=v_before+v_transfer.quantity; v_tx:=gen_random_uuid();
- PERFORM set_config('orshap.transfer_scope_bypass',p_transfer_id::text,true);
+ INSERT INTO public.wms_transfer_scope_context(transaction_id,transfer_id,actor_id,context_type) VALUES(txid_current(),p_transfer_id,v_user,'REJECT_RECEIPT');
  INSERT INTO public.transactions(id,reference_no,transaction_type,status,warehouse_id,storage_area_id,notes,created_by)
  VALUES(v_tx,v_transfer.reference_no||'-REJECT-RETURN','ADJUSTMENT_IN','APPROVED',v_shelf.warehouse_id,v_area,'Rejected transfer receipt; goods returned to source. Reason: '||btrim(p_reason),v_user);
  INSERT INTO public.transaction_lines(transaction_id,item_id,shelf_id,administrative_department_id,quantity,balance_before,balance_after,batch_no,expiry_date,storage_area_id,notes)
  VALUES(v_tx,v_transfer.item_id,v_transfer.source_shelf_id,v_owner,v_transfer.quantity,v_before,v_after,v_transfer.batch_no,v_transfer.expiry_date,v_area,'Transfer='||p_transfer_id::text||'; direction=REJECTED_RETURN; reason='||btrim(p_reason));
- PERFORM set_config('orshap.transfer_scope_bypass','',true);
+ DELETE FROM public.wms_transfer_scope_context WHERE transaction_id=txid_current() AND transfer_id=p_transfer_id AND actor_id=v_user AND context_type='REJECT_RECEIPT';
  INSERT INTO public.stock(item_id,shelf_id,administrative_department_id,quantity,batch_no,expiry_date,storage_area_id,updated_at)
  VALUES(v_transfer.item_id,v_transfer.source_shelf_id,v_owner,v_after,v_transfer.batch_no,v_transfer.expiry_date,v_area,now())
  ON CONFLICT (item_id, shelf_id, batch_no, administrative_department_id) DO UPDATE SET quantity=EXCLUDED.quantity,expiry_date=COALESCE(EXCLUDED.expiry_date,public.stock.expiry_date),storage_area_id=COALESCE(EXCLUDED.storage_area_id,public.stock.storage_area_id),updated_at=now();
@@ -516,12 +525,12 @@ AS $function$
                                                              RAISE EXCEPTION 'Source issue transaction is missing for transfer %',p_transfer_id;
                                                                END IF;
 
-                                                                 PERFORM set_config('orshap.transfer_scope_bypass',p_transfer_id::text,true);
+                                                                 INSERT INTO public.wms_transfer_scope_context(transaction_id,transfer_id,actor_id,context_type) VALUES(txid_current(),p_transfer_id,auth.uid(),'FINALIZE_SOURCE');
                                                                  UPDATE public.transactions
                                                                       SET status='APPROVED'
                                                                          WHERE id=v_t.source_transaction_id AND status='PENDING_RECEIPT';
                                                                  v_updated := FOUND;
-                                                                 PERFORM set_config('orshap.transfer_scope_bypass','',true);
+                                                                 DELETE FROM public.wms_transfer_scope_context WHERE transaction_id=txid_current() AND transfer_id=p_transfer_id AND actor_id=auth.uid() AND context_type='FINALIZE_SOURCE';
 
                                                                            IF v_updated THEN
                                                                                UPDATE public.transaction_ledger
