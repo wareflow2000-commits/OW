@@ -1,11 +1,11 @@
 /* ORSHAP WMS service worker: app-shell caching only. Remote business data is never cached here. */
 'use strict';
-const CACHE_NAME = 'orshap-wms-shell-v13-9-64-r4';
+const CACHE_NAME = 'orshap-wms-shell-v13-9-65-r5';
 const APP_SHELL = [
   './index.html',
   './qr-reader.js?v=13.9.58',
   './app.css?v=13.9.62-topbar-content-distribution',
-  './app.js?v=13.9.64-facility-persistence-fix',
+  './app.js?v=13.9.65-root-parse-fix',
   './SQLite-db.js?v=13.9.58',
   './supabase-client.js?v=13.9.58',
   './manifest.webmanifest'
