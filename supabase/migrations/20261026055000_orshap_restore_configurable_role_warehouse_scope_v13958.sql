@@ -244,4 +244,33 @@ $function$;
 REVOKE ALL ON FUNCTION public.admin_save_role_access_config(text, text[], text, uuid[]) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_save_role_access_config(text, text[], text, uuid[]) TO authenticated, service_role;
 
+
+-- Role administrators must be able to choose from the full warehouse catalogue even
+-- when their own profile is deliberately assigned to only one warehouse.
+CREATE OR REPLACE FUNCTION public.admin_list_warehouses_for_role_scope()
+RETURNS TABLE(id uuid, name text, code text)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_actor_role text;
+  v_actor_status text;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Authentication required' USING errcode = '28000';
+  END IF;
+  SELECT p.role, p.status INTO v_actor_role, v_actor_status
+  FROM public.profiles p WHERE p.id = auth.uid();
+  IF NOT FOUND OR v_actor_status <> 'ACTIVE' OR v_actor_role <> 'SUPER_ADMIN' THEN
+    RAISE EXCEPTION 'Only an active SUPER_ADMIN may list warehouses for role configuration' USING errcode = '42501';
+  END IF;
+  RETURN QUERY SELECT w.id, w.name, w.code FROM public.warehouses w ORDER BY w.name, w.code;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.admin_list_warehouses_for_role_scope() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_list_warehouses_for_role_scope() TO authenticated, service_role;
+
 COMMIT;
