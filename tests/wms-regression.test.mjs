@@ -716,3 +716,16 @@ test('user administration exposes warehouse-name multi-select and persists selec
   assert.match(source,/assigned_warehouse_ids:assignedWarehouseIds/,'save persists a deduplicated ID array');
   assert.doesNotMatch(source,/Assigned Warehouse IDs \(comma separated\)/,'no manual comma-separated IDs field remains');
 });
+
+test('super-admin user assignment loads all warehouse choices and preserves hidden out-of-scope assignments', () => {
+  const start=app.indexOf('async function s81UserModal(id)');
+  const end=app.indexOf('function s81Units()',start);
+  assert.ok(start>=0&&end>start,'async user modal and save functions exist');
+  const source=app.slice(start,end);
+  assert.match(source,/actorRole==='SUPER_ADMIN'/,'super-admin path is explicit');
+  assert.match(source,/client\.rpc\('admin_list_warehouses_for_role_scope'\)/,'super-admin gets the complete warehouse list from the authorized RPC');
+  assert.match(source,/name="user_assigned_warehouse"/,'warehouse choices are multi-select checkboxes');
+  assert.match(source,/retainedOutsideScope/,'edits by scoped administrators preserve assignments they cannot view');
+  assert.match(source,/assigned_warehouse_ids:assignedWarehouseIds/,'selected and preserved IDs are persisted');
+  assert.match(source,/Could not load all warehouses/,'super-admin selector fails visibly rather than silently showing a partial list');
+});
