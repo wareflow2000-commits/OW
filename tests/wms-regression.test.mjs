@@ -705,7 +705,7 @@ test('RLS writes for transactions and stocktake consistently enforce effective w
 });
 
 test('user administration exposes warehouse-name multi-select and persists selected warehouse IDs', () => {
-  const start=app.indexOf('function s81UserModal(id)');
+  const start=app.indexOf('async function s81UserModal(id)');
   const end=app.indexOf('function s81Units()',start);
   assert.ok(start>=0&&end>start,'user modal and save functions exist');
   const source=app.slice(start,end);
@@ -745,4 +745,16 @@ test('opening balances require an active owning department through create and ap
   assert.ok(migration.includes("p.role IN ('SUPER_ADMIN','MANAGER')"));
   assert.ok(migration.includes('current_user_can_access_warehouse(warehouse_id)'));
   assert.ok(migration.includes('Expected exactly one owning-department validation anchor in %'));
+});
+
+test('super-admin user assignment loads all warehouse choices and preserves hidden out-of-scope assignments', () => {
+  const start=app.indexOf('async function s81UserModal(id)');
+  const end=app.indexOf('function s81Units()',start);
+  assert.ok(start>=0&&end>start,'async user modal and save functions exist');
+  const source=app.slice(start,end);
+  assert.match(source,/actorRole==='SUPER_ADMIN'/,'super-admin path is explicit');
+  assert.match(source,/client\\.rpc\\('admin_list_warehouses_for_role_scope'\\)/,'super-admin gets the complete warehouse list from the authorized RPC');
+  assert.match(source,/name="user_assigned_warehouse"/,'warehouse choices are multi-select checkboxes');
+  assert.match(source,/retainedOutsideScope/,'edits by scoped administrators preserve assignments they cannot view');
+  assert.match(source,/assigned_warehouse_ids:assignedWarehouseIds/,'save persists the merged assignment ID array');
 });
