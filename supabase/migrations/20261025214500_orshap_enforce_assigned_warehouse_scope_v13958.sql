@@ -32,28 +32,25 @@ REVOKE ALL ON TABLE public.wms_transfer_scope_context FROM PUBLIC, anon, authent
 -- endpoint assignment, reference/status, and quantity reconciliation before allowing that one write.
 CREATE OR REPLACE FUNCTION public.enforce_transaction_warehouse_scope()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
-AS $
+AS $$
 DECLARE v_transfer_id uuid; v_context_type text; v_transfer_exception boolean := false;
 BEGIN
   IF auth.uid() IS NULL THEN RETURN NEW; END IF;
-  SELECT c.transfer_id,c.context_type INTO v_transfer_id,v_context_type
-    FROM public.wms_transfer_scope_context c
+  SELECT c.transfer_id,c.context_type INTO v_transfer_id,v_context_type FROM public.wms_transfer_scope_context c
     WHERE c.transaction_id=txid_current() AND c.actor_id=auth.uid();
   IF v_transfer_id IS NOT NULL THEN
     IF TG_OP='INSERT' AND v_context_type='REJECT_RECEIPT' AND NEW.transaction_type='ADJUSTMENT_IN' AND NEW.status='APPROVED'
-       AND EXISTS (SELECT 1 FROM public.stock_transfers st
-         WHERE st.id=v_transfer_id AND NEW.reference_no=st.reference_no||'-REJECT-RETURN'
-           AND NEW.warehouse_id=st.source_warehouse_id AND st.status='IN_TRANSIT'
-           AND st.rejection_transaction_id IS NULL
-           AND public.current_user_can_access_warehouse(st.destination_warehouse_id)) THEN
+       AND EXISTS (SELECT 1 FROM public.stock_transfers st WHERE st.id=v_transfer_id
+         AND NEW.reference_no=st.reference_no||'-REJECT-RETURN' AND NEW.warehouse_id=st.source_warehouse_id
+         AND st.status='IN_TRANSIT' AND st.rejection_transaction_id IS NULL
+         AND public.current_user_can_access_warehouse(st.destination_warehouse_id)) THEN
       v_transfer_exception := true;
     ELSIF TG_OP='UPDATE' AND v_context_type='FINALIZE_SOURCE' AND OLD.status='PENDING_RECEIPT' AND NEW.status='APPROVED'
-       AND EXISTS (SELECT 1 FROM public.stock_transfers st
-         WHERE st.id=v_transfer_id AND st.source_transaction_id=OLD.id
-           AND NEW.warehouse_id=st.source_warehouse_id
-           AND COALESCE(st.received_quantity,0)+COALESCE(st.returned_quantity,0)>=st.quantity
-           AND (public.current_user_can_access_warehouse(st.source_warehouse_id)
-                OR public.current_user_can_access_warehouse(st.destination_warehouse_id))) THEN
+       AND EXISTS (SELECT 1 FROM public.stock_transfers st WHERE st.id=v_transfer_id AND st.source_transaction_id=OLD.id
+         AND NEW.warehouse_id=st.source_warehouse_id
+         AND COALESCE(st.received_quantity,0)+COALESCE(st.returned_quantity,0)>=st.quantity
+         AND (public.current_user_can_access_warehouse(st.source_warehouse_id)
+              OR public.current_user_can_access_warehouse(st.destination_warehouse_id))) THEN
       v_transfer_exception := true;
     END IF;
   END IF;
@@ -65,14 +62,15 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
+
 DROP TRIGGER IF EXISTS trg_enforce_transaction_warehouse_scope ON public.transactions;
 CREATE TRIGGER trg_enforce_transaction_warehouse_scope BEFORE INSERT OR UPDATE ON public.transactions
 FOR EACH ROW EXECUTE FUNCTION public.enforce_transaction_warehouse_scope();
 
 CREATE OR REPLACE FUNCTION public.enforce_transaction_line_warehouse_scope()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
-AS $
+AS $$
 DECLARE v_tx_id uuid; v_warehouse_id uuid; v_transfer_id uuid; v_context_type text;
 BEGIN
   IF auth.uid() IS NULL THEN IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW; END IF;
@@ -80,8 +78,7 @@ BEGIN
   SELECT t.warehouse_id INTO v_warehouse_id FROM public.transactions t WHERE t.id=v_tx_id;
   IF v_warehouse_id IS NULL AND TG_OP='DELETE' THEN RETURN OLD; END IF;
   IF v_warehouse_id IS NULL OR NOT public.current_user_can_access_warehouse(v_warehouse_id) THEN
-    SELECT c.transfer_id,c.context_type INTO v_transfer_id,v_context_type
-      FROM public.wms_transfer_scope_context c
+    SELECT c.transfer_id,c.context_type INTO v_transfer_id,v_context_type FROM public.wms_transfer_scope_context c
       WHERE c.transaction_id=txid_current() AND c.actor_id=auth.uid();
     IF TG_OP='INSERT' AND v_context_type='REJECT_RECEIPT' AND v_transfer_id IS NOT NULL AND EXISTS (
       SELECT 1 FROM public.transactions t JOIN public.stock_transfers st ON st.id=v_transfer_id
@@ -97,7 +94,8 @@ BEGIN
   END IF;
   IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW;
 END;
-$;
+$$;
+
 DROP TRIGGER IF EXISTS trg_enforce_transaction_line_warehouse_scope ON public.transaction_lines;
 CREATE TRIGGER trg_enforce_transaction_line_warehouse_scope BEFORE INSERT OR UPDATE OR DELETE ON public.transaction_lines
 FOR EACH ROW EXECUTE FUNCTION public.enforce_transaction_line_warehouse_scope();
