@@ -613,3 +613,23 @@ test('profile refresh purges assigned-admin cache scope without restricting the 
   assert.doesNotMatch(source,/db\.items\s*=\s*db\.items\.filter/,'item master must remain warehouse-independent');
   assert.match(source,/else if\(!admin\)/,'unassigned non-admin cache is purged');
 });
+
+test('role permissions modal restores configurable one-or-many warehouse scope', () => {
+  assert.match(app, /v12-role-scope-mode/);
+  assert.match(app, /id:'SELECTED',name:tr\(/);
+  assert.match(app, /One or multiple selected warehouses/);
+  assert.match(app, /admin_save_role_access_config/);
+  assert.match(app, /admin_list_warehouses_for_role_scope/);
+  assert.match(app, /role_warehouse/);
+});
+
+test('role warehouse scope migration defaults to inheritance and intersects explicit user assignment', () => {
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026055048_orshap_restore_configurable_role_warehouse_scope_v13958.sql', import.meta.url), 'utf8');
+  assert.match(migration, /scope_mode IN \('INHERIT','SELECTED','ALL'\)/);
+  assert.match(migration, /current_user_can_access_warehouse/);
+  assert.match(migration, /p_warehouse_id = ANY\(p\.assigned_warehouse_ids\)/);
+  assert.match(migration, /p_warehouse_id = ANY\(rs\.warehouse_ids\)/);
+  assert.match(migration, /admin_save_role_access_config/);
+  assert.match(migration, /admin_list_warehouses_for_role_scope/);
+  assert.match(migration, /REVOKE ALL ON TABLE public\.role_warehouse_scopes FROM PUBLIC, anon, authenticated/);
+});
