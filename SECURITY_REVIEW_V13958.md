@@ -88,3 +88,15 @@ These were executed against the connected Supabase database inside explicit tran
 
 ### Release decision
 **Not approved for production yet.** The live database posting, supplier/customer/usage returns, partial transfer and return, stocktake settlement, sync replay, over-issue rejection, owner ambiguity, and warehouse-scope tests passed with forced rollback and no residual test data. Stock and both ledgers reconcile. Production approval remains blocked by the unresolved GraphQL client-execution ACL and disabled leaked-password protection; a true simultaneous two-session over-issue test and separate CI execution on the exact squash merge commit also remain unverified.
+
+## 2026-10-26 follow-up: offline queue and stocktake RPC ownership
+
+- Added strict validation before replaying the offline master-data queue: only approved tables and insert/update/delete operations are accepted; malformed entries are retained for review rather than sent, and update payloads cannot alter primary keys.
+- Tightened `public.save_stocktake_count(uuid,numeric)` in applied migration `20261026082014_orshap_stocktake_count_session_owner_guard_v13958`: the SECURITY DEFINER function now explicitly enforces the same stocktake creator-or-manager boundary as the table RLS policy, alongside the existing permission, session-state, and current warehouse-access checks.
+- Tightened `public.populate_stocktake_session_lines(uuid)` and `public.submit_stocktake_for_review(uuid)` in applied migration `20261026082258_orshap_stocktake_mutation_session_owner_guards_v13958` for the same creator-or-manager boundary, and added explicit editable-session validation before populating lines.
+- Read-only verification against the live database confirmed all three RPC definitions contain both the ownership guard and warehouse-scope guard. No stock movements, stocktake counts, settlement, or ledger rows were created by this audit.
+- CI regression checks and desktop/mobile browser smoke tests passed on commit `b1f6f42dc802137419d201bf049375a1d72993f6`.
+
+### Remaining release blockers
+
+The prior blockers remain unchanged: the exposed `graphql_public.graphql` EXECUTE ACL requires an authorized owner or supported Supabase API setting to resolve, and leaked-password protection must be enabled in Supabase Auth settings. The Security Advisor also continues to report callable SECURITY DEFINER functions for per-function review; that warning alone does not prove each function is vulnerable.
