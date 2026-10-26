@@ -1441,7 +1441,7 @@ function txDetail(id){const x=v5Find('transactions',id),ar=state.lang==='ar';if(
     return previousHandleV12(a);
   };
   window.addEventListener('load',()=>setTimeout(()=>{if(state.login&&window.orshapSupabase)refreshV12().catch(()=>{})},1200));
-  window.addEventListener('online',()=>{if(state.offlineSession)return;setTimeout(()=>refreshV12().then(()=>Promise.all([flushOutbox(),flushStocktakeCountQueue()])).catch(e=>console.warn('Offline sync deferred until the current warehouse assignment is refreshed',e)),1200)});
+  window.addEventListener('online',()=>{if(state.offlineSession)return;setTimeout(()=>refreshV12().then(ok=>{if(ok!==true)throw new Error('Server refresh failed; queued operations remain unsent until warehouse access is confirmed.');return Promise.all([flushOutbox(),flushStocktakeCountQueue()])}).catch(e=>console.warn('Offline sync deferred until the current warehouse assignment is refreshed',e)),1200)});
   window.addEventListener('orshap-outbox-changed',()=>{try{const el=document.querySelector('[data-outbox-count]');if(el)el.textContent=String(outboxRead().filter(x=>x.status!=='SYNCED').length)}catch(_){}});
   window.orshapOutbox={list:outboxRead,flush:flushOutbox,retry:async()=>{const rows=outboxRead();for(const x of rows)if(x.status==='ERROR'){x.status='PENDING';x.last_error=null}outboxWrite(rows);return flushOutbox()}};
   window.orshapV12TxModal=txModal;
