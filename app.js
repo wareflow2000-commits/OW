@@ -180,7 +180,7 @@ function v7Queue(table,operation,payload,baseVersion=0){
 }
 function v7Audit(action,entity,id,details={}){v7Ensure();V5_DB.audit_logs.push({id:uid(),action,entity,entity_id:id,details,created_at:v7Now()});}
 const __v7Handle=handleAction;
-handleAction=function(a){
+handleAction=async function(a){
   if(a.startsWith('v7-approve:')||a.startsWith('v7-reject:')||a.startsWith('v5-approve:')||a.startsWith('v5-reject:')||a==='v5-new-in'||a==='v5-new-out'||a==='v5-save-modal'){
     toast(state.lang==='ar'?'مسار المعاملات المحلي القديم متوقف. استخدم «طلب جديد» والاعتماد من قاعدة البيانات.':'Legacy local transaction actions are retired. Use New Request and database-backed approval.','error');
     return;
@@ -283,6 +283,33 @@ function v8OpenFacility(kind,id){
   }
   v8OpenForm(title,'v8-facility-form',body,'v8-save-facility');
 }
+async function v8PersistFacilityRow(kind,table,id,row){
+  if(!navigator.onLine||state.offlineSession){
+    const mutation=window.offlineMasterMutation;
+    if(typeof mutation!=='function')throw new Error('Offline master-data bridge is unavailable. Reload the application and retry.');
+    const result=mutation(kind,table,id,row);
+    if(!result)throw new Error('This master-data change cannot be queued for offline synchronization.');
+    return {data:result.data||row,offline:true};
+  }
+  const ready=window.orshapSupabaseReady;
+  if(!ready)throw new Error('Supabase client is not initialized. Reload the application and retry.');
+  const client=await ready;
+  if(!client||typeof client.from!=='function')throw new Error('Supabase client is unavailable.');
+  let request;
+  if(kind==='insert')request=client.from(table).insert(row).select('*').single();
+  else if(kind==='update'){
+    const patch={...row};delete patch.id;
+    request=client.from(table).update(patch).eq('id',id).select('*').single();
+  }else throw new Error('Unsupported facility mutation.');
+  const {data,error}=await request;
+  if(error)throw error;
+  if(!data)throw new Error('Supabase did not return the saved record.');
+  const rows=Array.isArray(V5_DB[table])?V5_DB[table]:(V5_DB[table]=[]);
+  const index=rows.findIndex(x=>x.id===data.id);
+  if(index>=0)rows[index]={...rows[index],...data};else rows.push(data);
+  v5Save();
+  return {data,offline:false};
+}
 function v8SaveFacility(kind){
   const form=document.getElementById('v8-facility-form');if(!form)return;
   const o=Object.fromEntries(new FormData(form).entries());let obj,id,old;
@@ -302,7 +329,7 @@ function v8SaveFacility(kind){
     if(!warehouse||!c10AccessibleWarehouse(warehouse.id)||!o.name?.trim()||!o.code?.trim()){v8Err(state.lang==='ar'?'اختر مستودعاً مصرحاً به وأدخل اسم ورمز المنطقة':'Choose an authorized warehouse and enter area name and code');return}
     if(v5All('storage_areas').some(a=>a.id!==editId&&a.warehouse_id===warehouse.id&&String(a.code||'').trim().toLowerCase()===o.code.trim().toLowerCase())){v8Err(state.lang==='ar'?'رمز منطقة التخزين مستخدم في هذا المستودع':'Storage-area code already exists in this warehouse');return}
     id=editId||uid();obj={...(old||{}),id,warehouse_id:warehouse.id,code:o.code.trim(),name:o.name.trim(),is_active:o.is_active!=='false',created_at:old?.created_at||v8Now(),updated_at:v8Now()};
-    window.offlineMasterMutation(old?'update':'insert','storage_areas',id,obj);v8Audit(old?'UPDATE':'INSERT','storage_areas',id,obj);state.v8EditingAreaId=null;syncOfflineMasterQueue().catch(e=>console.warn('Storage-area sync pending',e));closeModal();toast(state.lang==='ar'?'تم حفظ منطقة التخزين':'Storage area saved');render();return;
+    const persisted=await v8PersistFacilityRow(old?'update':'insert','storage_areas',id,obj);v8Audit(old?'UPDATE':'INSERT','storage_areas',id,persisted.data||obj);state.v8EditingAreaId=null;if(persisted.offline)syncOfflineMasterQueue().catch(e=>console.warn('Storage-area sync pending',e));closeModal();toast(persisted.offline?(state.lang==='ar'?'حُفظت محلياً وستتم مزامنتها عند الاتصال':'Saved locally; will sync when online'):(state.lang==='ar'?'تم حفظ منطقة التخزين في قاعدة البيانات':'Storage area saved to database'));render();return;
   }
   if(kind==='shelf'){
     const editId=state.v8EditingShelfId||null;old=editId?v5Find('shelves',editId):null;
@@ -311,7 +338,7 @@ function v8SaveFacility(kind){
     if(!o.warehouse_id||!c10AccessibleWarehouse(o.warehouse_id)||!area||area.warehouse_id!==o.warehouse_id||area.is_active===false||!o.code?.trim()){v8Err(state.lang==='ar'?'اختر المستودع ومنطقة تخزين تابعة له وأدخل رمز الرف':'Choose an authorized warehouse, one of its active storage areas, and a shelf code');return}
     if(v5All('shelves').some(sh=>sh.id!==editId&&sh.storage_area_id===area.id&&String(sh.code||'').trim().toLowerCase()===o.code.trim().toLowerCase())){v8Err(state.lang==='ar'?'رمز الرف مستخدم في منطقة التخزين':'Shelf code already exists in this storage area');return}
     id=editId||uid();obj={...(old||{}),id,warehouse_id:o.warehouse_id,storage_area_id:area.id,default_administrative_department_id:o.default_administrative_department_id||null,code:o.code.trim(),full_path:o.full_path?.trim()||`${area.name} / ${o.code.trim()}`,created_at:old?.created_at||v8Now()};
-    window.offlineMasterMutation(old?'update':'insert','shelves',id,obj);v8Audit(old?'UPDATE':'INSERT','shelves',id,obj);state.v8EditingShelfId=null;syncOfflineMasterQueue().catch(e=>console.warn('Shelf sync pending',e));closeModal();toast(state.lang==='ar'?'تم حفظ الرف':'Shelf saved');render();return;
+    const persisted=await v8PersistFacilityRow(old?'update':'insert','shelves',id,obj);v8Audit(old?'UPDATE':'INSERT','shelves',id,persisted.data||obj);state.v8EditingShelfId=null;if(persisted.offline)syncOfflineMasterQueue().catch(e=>console.warn('Shelf sync pending',e));closeModal();toast(persisted.offline?(state.lang==='ar'?'حُفظ الرف محلياً وستتم مزامنته عند الاتصال':'Saved locally; will sync when online'):(state.lang==='ar'?'تم حفظ الرف في قاعدة البيانات':'Shelf saved to database'));render();return;
   }
   if(kind==='warehouse'){if(!o.name||!o.code){v8Err(state.lang==='ar'?'أدخل اسم ورمز المستودع':'Enter warehouse name and code');return}if(v5All('warehouses').some(x=>x.code.toLowerCase()===o.code.toLowerCase())){v8Err(state.lang==='ar'?'رمز المستودع مستخدم':'Warehouse code already exists');return}id=uid();obj={id,name:o.name.trim(),code:o.code.trim(),created_at:v8Now()};V5_DB.warehouses.push(obj);state.v8FacilityWarehouseId=id}
   if(kind==='zone'){v8Err(state.lang==='ar'?'إنشاء المناطق القديمة متوقف.':'Legacy zones are retired.');return}
@@ -324,7 +351,7 @@ handleAction=function(a){
   if(a==='v8-open-wh'){v8OpenFacility('warehouse');return} if(a==='v8-open-zone'||a==='open-zone'){v8Err(state.lang==='ar'?'المناطق القديمة مخفية؛ استخدم مناطق التخزين.':'Legacy zones are hidden; use storage areas.');return} if(a==='v8-open-area'){v8OpenFacility('storage_area');return} if(a.startsWith('v8-edit-area:')){v8OpenFacility('storage_area',a.split(':')[1]);return} if(a==='v8-open-category'||a==='v8-open-section'||a==='open-section'){v8OpenFacility('item_category');return} if(a.startsWith('v8-edit-category:')){v8OpenFacility('item_category',a.split(':')[1]);return} if(a==='v8-open-shelf'||a==='open-shelf'){v8OpenFacility('shelf');return} if(a.startsWith('v8-edit-shelf:')){v8OpenFacility('shelf',a.split(':')[1]);return}
   if(a.startsWith('v8-select-wh:')){v8SelectWarehouse(a.split(':')[1]);return}
   if(a==='open-item'||a==='v8-open-item'){v8ItemModal();return} if(a.startsWith('v8-edit-item:')){v8ItemModal(a.split(':')[1]);return} if(a.startsWith('v8-delete-item:')){v8DeleteItem(a.split(':')[1]);return}
-  if(a==='v8-save-facility'){try{v8SaveFacility(state.v8FacilityKind)}catch(e){v8Err(e.message||String(e))}return}
+  if(a==='v8-save-facility'){try{await v8SaveFacility(state.v8FacilityKind)}catch(e){v8Err(e.message||String(e))}return}
   if(a==='v8-save-form'){try{if(state.v8FormId==='item')v8SaveItem();else __v8Handle(a)}catch(e){v8Err(e.message||String(e))}return}
   if(a.startsWith('v8-print-shelf:')){const s=v5Find('shelves',a.split(':')[1]);if(s){const w=v5Find('warehouses',s.warehouse_id);const html=`<html><head><title>QR ${esc(s.code)}</title></head><body style="font-family:Arial;text-align:center;padding:40px;direction:rtl"><h2>${esc(w?.name||'')}</h2><h1>${esc(s.code)}</h1><p>${esc(s.full_path||'')}</p><p>QR: ${esc(s.code)}</p><script>window.print()<\/script></body></html>`;const win=window.open('','_blank');if(win){win.document.write(html);win.document.close()}}return}
   __v8Handle(a);
