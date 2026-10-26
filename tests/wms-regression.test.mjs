@@ -396,7 +396,8 @@ test('stocktake counts queue offline and replay through the database count RPC',
   assert.ok(queueSource.indexOf('!v13OfflineWarehouseAllowed(session.warehouse_id)')<queueSource.indexOf("await rpc('save_stocktake_count'"),'scope check must happen before the RPC');
   assert.match(app,/if\(!c10AccessibleWarehouse\(session\.warehouse_id\)\)throw new Error\('This stocktake session is outside your assigned warehouse scope\.'\)/);
   assert.ok(app.includes('await window.orshapV12?.refresh?.();await window.orshapV12?.syncOfflineMasterQueue?.();'),'manual sync refreshes current assignment before replay');
-  assert.ok(app.includes('refreshV12().then(()=>Promise.all([flushOutbox(),flushStocktakeCountQueue()]))'),'online event refreshes current assignment before replay');
+  assert.ok(app.includes('refreshV12().then(ok=>{if(ok!==true)throw new Error('),'online event requires a confirmed current assignment before replay');
+  assert.ok(app.indexOf('if(ok!==true)throw new Error')<app.indexOf('Promise.all([flushOutbox(),flushStocktakeCountQueue()])'),'online event must not flush queues after a failed refresh');
   const syncStart=app.indexOf("if(typeof c10DoSync==='function'){c10DoSync=async function()");
   const syncEnd=app.indexOf('// Keep selected stocktake line IDs explicit',syncStart);
   const syncSource=app.slice(syncStart,syncEnd);
