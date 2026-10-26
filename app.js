@@ -895,7 +895,7 @@ try{render()}catch(e){console.error('V10 final render failed',e)}
     const allow=new Set(current.accessible_warehouse_ids);
     state.noWarehouseAccess=allow.size===0;
     if(allow.size){
-      sourceTransactions=(V12.remoteState.transactions||V5_DB.transactions||[]).slice(),sourceSessions=(V12.remoteState.stocktake_sessions||V5_DB.stocktake_sessions||[]).slice();
+      const sourceTransactions=(V12.remoteState.transactions||V5_DB.transactions||[]).slice(),sourceSessions=(V12.remoteState.stocktake_sessions||V5_DB.stocktake_sessions||[]).slice();
       const shelves=new Set((V5_DB.shelves||[]).filter(x=>allow.has(x.warehouse_id)).map(x=>x.id)),txids=new Set(sourceTransactions.filter(x=>allow.has(x.warehouse_id)).map(x=>x.id)),sessions=new Set(sourceSessions.filter(x=>allow.has(x.warehouse_id)).map(x=>x.id));
       const auditWarehouse=(x)=>{let details=x.details||{},wid=x.warehouse_id||null;if(typeof details==='string'){try{details=JSON.parse(details)}catch(_){details={}}}wid=wid||details?.warehouse_id||details?.warehouseId||null;const txid=details?.tx_id||details?.transaction_id||(String(x.entity||'').toUpperCase()==='TRANSACTION'?x.entity_id:null);if(!wid&&txid)wid=sourceTransactions.find(t=>t.id===txid)?.warehouse_id||null;return wid?allow.has(wid):true};
       const auditTxWarehouse=(x)=>{let snapshot=x.snapshot||{},wid=x.warehouse_id||null;if(typeof snapshot==='string'){try{snapshot=JSON.parse(snapshot)}catch(_){snapshot={}}}wid=wid||snapshot?.warehouse_id||null;if(!wid&&x.transaction_id)wid=sourceTransactions.find(t=>t.id===x.transaction_id)?.warehouse_id||null;return !!wid&&allow.has(wid)};
