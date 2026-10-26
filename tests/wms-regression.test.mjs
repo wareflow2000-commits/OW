@@ -770,7 +770,7 @@ test('reconnect handler does not flush transaction or stocktake queues when refr
 });
 
 test('stocktake count SECURITY DEFINER RPC enforces the same session owner/manager boundary as RLS', () => {
-  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026082000_orshap_stocktake_count_session_owner_guard_v13958.sql', import.meta.url), 'utf8');
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026082014_orshap_stocktake_count_session_owner_guard_v13958.sql', import.meta.url), 'utf8');
   assert.match(migration, /v_session\.created_by IS DISTINCT FROM v_user[\s\S]{0,120}NOT public\.current_user_is_manager\(\)/);
   assert.match(migration, /current_user_can_access_warehouse\(v_session\.warehouse_id\)/);
   assert.match(migration, /current_user_has_permission\('action:stocktake:count'\)/);
