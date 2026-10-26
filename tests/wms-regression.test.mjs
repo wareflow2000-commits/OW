@@ -624,7 +624,7 @@ test('role permissions modal restores configurable one-or-many warehouse scope',
 });
 
 test('role warehouse scope migration defaults to inheritance and intersects explicit user assignment', () => {
-  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026055000_orshap_restore_configurable_role_warehouse_scope_v13958.sql', import.meta.url), 'utf8');
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026055048_orshap_restore_configurable_role_warehouse_scope_v13958.sql', import.meta.url), 'utf8');
   assert.match(migration, /scope_mode IN \('INHERIT','SELECTED','ALL'\)/);
   assert.match(migration, /current_user_can_access_warehouse/);
   assert.match(migration, /p_warehouse_id = ANY\(p\.assigned_warehouse_ids\)/);
