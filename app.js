@@ -933,7 +933,7 @@ try{render()}catch(e){console.error('V10 final render failed',e)}
     const client=await R();
     const [scopeResult,warehouseResult]=await Promise.all([
       client.rpc('admin_get_role_warehouse_scope',{p_role_name:role}),
-      client.from('warehouses').select('id,name,code').order('name')
+      client.rpc('admin_list_warehouses_for_role_scope')
     ]);
     if(scopeResult.error)throw scopeResult.error;
     if(warehouseResult.error)throw warehouseResult.error;
