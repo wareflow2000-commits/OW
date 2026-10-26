@@ -551,6 +551,11 @@ test('approval and rejection RPCs enforce explicit warehouse assignment for priv
   const helperAcl = fs.readFileSync(new URL('../supabase/migrations/20261026044833_restrict_assigned_warehouse_scope_helper_execution_v13958.sql', import.meta.url), 'utf8');
   assert.match(migration, /IF NOT public\.current_user_can_access_warehouse\(v_tx_rec\.warehouse_id\)/);
   assert.match(migration, /IF NOT public\.current_user_can_access_warehouse\(v_tx\.warehouse_id\)/);
+  assert.match(migration, /IF NOT public\.current_user_can_access_warehouse\(v_warehouse_id\)/);
+  assert.match(migration, /IF NOT public\.current_user_can_access_warehouse\(p_warehouse_id\)/);
+  assert.match(migration, /IF NOT public\.current_user_can_access_warehouse\(v_session\.warehouse_id\)/);
+  assert.match(migration, /IF NOT public\.current_user_can_access_warehouse\(v_s\.warehouse_id\)/);
+  assert.doesNotMatch(migration, /NOT public\.current_user_is_manager\(\)\s+AND NOT \(v_s\.warehouse_id/);
   assert.doesNotMatch(migration, /v_actor_role NOT IN \('SUPER_ADMIN', 'ADMIN', 'MANAGER'\)\s+AND NOT EXISTS/);
   assert.ok(migration.indexOf('current_user_can_access_warehouse(v_tx.warehouse_id)') < migration.indexOf("IF v_tx.status <> 'PENDING_APPROVAL'"), 'rejection scope guard runs before status-specific behavior');
   assert.match(helperAcl, /REVOKE ALL ON FUNCTION public\.current_user_can_access_warehouse\(uuid\) FROM PUBLIC, anon/);
