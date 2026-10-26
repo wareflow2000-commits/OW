@@ -812,14 +812,6 @@ test('offline replay refreshes server-derived warehouse scope before transaction
   assert.ok(pull.indexOf("rpc('current_user_accessible_warehouse_ids')") >= 0, 'effective scope comes from the authenticated database RPC');
   assert.ok(pull.indexOf('catch(scopeError)') < pull.indexOf('current.accessible_warehouse_ids=[...new Set(accessibleWarehouseIds)]'));
   assert.match(pull, /catch\(scopeError\)[\s\S]{0,260}accessibleWarehouseIds=\[\]/, 'scope lookup failure must fail closed');
-test('offline replay refreshes server-derived warehouse scope before transaction and stocktake queues', () => {
-  const pullStart = app.indexOf('async function v12PullCore()');
-  const pullEnd = app.indexOf('function inventoryV12()', pullStart);
-  assert.ok(pullStart >= 0 && pullEnd > pullStart, 'canonical server refresh exists');
-  const pull = app.slice(pullStart, pullEnd);
-  assert.ok(pull.indexOf("rpc('current_user_accessible_warehouse_ids')") >= 0, 'effective scope comes from the authenticated database RPC');
-  assert.ok(pull.indexOf('catch(scopeError)') < pull.indexOf('current.accessible_warehouse_ids=[...new Set(accessibleWarehouseIds)]'));
-  assert.match(pull, /catch\(scopeError\)[\s\S]{0,260}accessibleWarehouseIds=\[\]/, 'scope lookup failure must fail closed');
   const refreshStart = app.indexOf('async function refreshV12()');
   const refreshEnd = app.indexOf('function qrPrint(', refreshStart);
   assert.ok(refreshStart >= 0 && refreshEnd > refreshStart, 'refresh path exists');
