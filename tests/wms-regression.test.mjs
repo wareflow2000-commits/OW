@@ -778,37 +778,6 @@ test('offline replay refreshes server-derived warehouse scope before transaction
   assert.ok(pull.indexOf("rpc('current_user_accessible_warehouse_ids')") >= 0, 'effective scope comes from the authenticated database RPC');
   assert.ok(pull.indexOf('catch(scopeError)') < pull.indexOf('current.accessible_warehouse_ids=[...new Set(accessibleWarehouseIds)]'));
   assert.match(pull, /catch\(scopeError\)[\s\S]{0,260}accessibleWarehouseIds=\[\]/, 'scope lookup failure must fail closed');
-  const refreshStart = app.indexOf('async function refreshV12()');
-  const refreshEnd = app.indexOf('function qrPrint(', refreshStart);
-  assert.ok(refreshStart >= 0 && refreshEnd > refreshStart, 'refresh path exists');
-  const refresh = app.slice(refreshStart, refreshEnd);
-  assert.ok(refresh.indexOf('await v12PullCore()') < refresh.indexOf('await flushOutbox()'), 'transaction outbox must wait for fresh scope');
-  assert.ok(refresh.indexOf('await v12PullCore()') < refresh.indexOf('await flushStocktakeCountQueue()'), 'stocktake queue must wait for fresh scope');
-  const syncStart = app.lastIndexOf("if(typeof c10DoSync==='function')");
-  const syncEnd = app.indexOf('// Keep selected stocktake line IDs explicit', syncStart);
-  assert.ok(syncStart >= 0 && syncEnd > syncStart, 'active sync override exists');
-  const sync = app.slice(syncStart, syncEnd);
-  assert.ok(sync.indexOf('await window.orshapV12?.refresh?.()') < sync.indexOf('await window.orshapOutbox?.retry?.()'));
-  assert.ok(sync.indexOf('await window.orshapV12?.refresh?.()') < sync.indexOf('await window.orshapV12?.syncStocktakeCountQueue?.()'));
-  assert.match(app, /if\(!v13OfflineWarehouseAllowed\(tx\.warehouse_id\)\|\|tx\.created_by!==state\.session\.id\)/);
-  assert.match(app, /!v13OfflineWarehouseAllowed\(session\.warehouse_id\)/);
-});
-
-  const refreshStart = app.indexOf('async function refreshV12()');
-  const refreshEnd = app.indexOf('function qrPrint(', refreshStart);
-  assert.ok(refreshStart >= 0 && refreshEnd > refreshStart, 'refresh function exists');
-  const refresh = app.slice(refreshStart, refreshEnd);
-  assert.ok(refresh.includes("return true}catch(e){say(e.message||String(e),'Refresh failed','error');return false}"), 'refresh must expose failure to its caller');
-  const syncStart = app.lastIndexOf("if(typeof c10DoSync==='function')");
-  const syncEnd = app.indexOf('// Keep selected stocktake line IDs explicit', syncStart);
-  const sync = app.slice(syncStart, syncEnd);
-  assert.ok(sync.includes('const scopeRefreshSucceeded=await window.orshapV12?.refresh?.();'));
-  assert.ok(sync.includes('if(scopeRefreshSucceeded!==true)throw new Error('), 'failed authoritative refresh must abort sync');
-  assert.ok(sync.indexOf('if(scopeRefreshSucceeded!==true)throw new Error') < sync.indexOf('await window.orshapV12?.syncOfflineMasterQueue?.()'));
-  assert.ok(sync.indexOf('if(scopeRefreshSucceeded!==true)throw new Error') < sync.indexOf('await window.orshapOutbox?.retry?.()'));
-  assert.ok(sync.includes('const finalRefreshSucceeded=await window.orshapV12?.refresh?.();'));
-  assert.ok(sync.includes('if(finalRefreshSucceeded!==true)throw new Error('), 'post-sync refresh failure must not be reported as success');
-});
 test('offline replay refreshes server-derived warehouse scope before transaction and stocktake queues', () => {
   const pullStart = app.indexOf('async function v12PullCore()');
   const pullEnd = app.indexOf('function inventoryV12()', pullStart);
