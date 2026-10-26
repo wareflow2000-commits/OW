@@ -1,5 +1,5 @@
 -- ORSHAP WMS v13.9.58: require an active owning department on every opening-balance line.
--- The dedicated opening-balance RPC already validates this; align generic RPC and approval.
+-- Match the validation clauses structurally; pg_proc.prosrc whitespace differs across deployed revisions.
 BEGIN;
 DO $patch$
 DECLARE
@@ -11,28 +11,40 @@ DECLARE
   v_count integer;
 BEGIN
   FOR r IN SELECT * FROM (VALUES
-    ('public.create_transaction_with_lines(uuid,jsonb,jsonb)'::regprocedure,
-     $a$IF v_type IN ('GRN','ISSUE','ADJUSTMENT_IN','ADJUSTMENT_OUT','RETURN_FROM_USAGE','RETURN_FROM_CUSTOMER','RETURN_TO_SUPPLIER')
-       AND v_line.administrative_department_id IS NULL THEN
-      RAISE EXCEPTION 'Owning department is required for each stock transaction line';$a$,
-     $b$IF v_type IN ('GRN','ISSUE','ADJUSTMENT_IN','ADJUSTMENT_OUT','RETURN_FROM_USAGE','RETURN_FROM_CUSTOMER','RETURN_TO_SUPPLIER','OPENING_BALANCE')
+    (
+      'public.create_transaction_with_lines(uuid,jsonb,jsonb)'::regprocedure,
+      $pattern$IF\s+v_type\s+IN\s*\([^)]*\)\s+AND\s+v_line\.administrative_department_id\s+IS\s+NULL\s+THEN\s+RAISE EXCEPTION 'Owning department is required for each stock transaction line';$pattern$,
+      $replacement$IF v_type IN ('GRN','ISSUE','ADJUSTMENT_IN','ADJUSTMENT_OUT','RETURN_FROM_USAGE','RETURN_FROM_CUSTOMER','RETURN_TO_SUPPLIER','OPENING_BALANCE')
        AND (v_line.administrative_department_id IS NULL OR NOT EXISTS (
          SELECT 1 FROM public.administrative_departments d
          WHERE d.id = v_line.administrative_department_id AND d.is_active = true
        )) THEN
-      RAISE EXCEPTION 'Owning department is required for each stock transaction line';$b$),
-    ('public.approve_transaction(uuid)'::regprocedure,
-     $a$IF v_tx_rec.transaction_type IN ('GRN', 'ISSUE', 'ADJUSTMENT_IN', 'ADJUSTMENT_OUT', 'RETURN_FROM_USAGE', 'RETURN_FROM_CUSTOMER', 'RETURN_TO_SUPPLIER') AND v_rec.administrative_department_id IS NULL THEN RAISE EXCEPTION 'Owning department is required for each stock transaction line'; END IF;$a$,
-     $b$IF v_tx_rec.transaction_type IN ('GRN', 'ISSUE', 'ADJUSTMENT_IN', 'ADJUSTMENT_OUT', 'RETURN_FROM_USAGE', 'RETURN_FROM_CUSTOMER', 'RETURN_TO_SUPPLIER', 'OPENING_BALANCE') AND (v_rec.administrative_department_id IS NULL OR NOT EXISTS (SELECT 1 FROM public.administrative_departments d WHERE d.id = v_rec.administrative_department_id AND d.is_active = true)) THEN RAISE EXCEPTION 'Owning department is required for each stock transaction line'; END IF;$b$)
-  ) AS x(fn,anchor,replacement)
+      RAISE EXCEPTION 'Owning department is required for each stock transaction line';$replacement$
+    ),
+    (
+      'public.approve_transaction(uuid)'::regprocedure,
+      $pattern$IF\s+v_tx_rec\.transaction_type\s+IN\s*\([^)]*\)\s+AND\s+v_rec\.administrative_department_id\s+IS\s+NULL\s+THEN\s+RAISE EXCEPTION 'Owning department is required for each stock transaction line';\s+END IF;$pattern$,
+      $replacement$IF v_tx_rec.transaction_type IN ('GRN', 'ISSUE', 'ADJUSTMENT_IN', 'ADJUSTMENT_OUT', 'RETURN_FROM_USAGE', 'RETURN_FROM_CUSTOMER', 'RETURN_TO_SUPPLIER', 'OPENING_BALANCE')
+       AND (v_rec.administrative_department_id IS NULL OR NOT EXISTS (
+         SELECT 1 FROM public.administrative_departments d
+         WHERE d.id = v_rec.administrative_department_id AND d.is_active = true
+       )) THEN
+      RAISE EXCEPTION 'Owning department is required for each stock transaction line';
+    END IF;$replacement$
+    )
+  ) AS x(fn, pattern, replacement)
   LOOP
-    SELECT p.prosrc INTO v_body FROM pg_proc p WHERE p.oid=r.fn::oid;
-    v_count := (length(v_body)-length(replace(v_body,r.anchor,'')))/length(r.anchor);
-    IF v_count<>1 THEN RAISE EXCEPTION 'Expected exactly one owning-department validation anchor in %, found %',r.fn,v_count; END IF;
-    v_new_body:=replace(v_body,r.anchor,r.replacement);
-    v_def:=pg_get_functiondef(r.fn::oid);
-    v_new_def:=replace(v_def,v_body,v_new_body);
-    IF v_new_def=v_def THEN RAISE EXCEPTION 'Could not reconstruct function definition for %',r.fn; END IF;
+    SELECT p.prosrc INTO v_body FROM pg_proc p WHERE p.oid = r.fn::oid;
+    SELECT count(*) INTO v_count FROM regexp_matches(v_body, r.pattern, 'g');
+    IF v_count <> 1 THEN
+      RAISE EXCEPTION 'Expected exactly one owning-department validation clause in %, found %', r.fn, v_count;
+    END IF;
+    v_new_body := regexp_replace(v_body, r.pattern, r.replacement, 'g');
+    v_def := pg_get_functiondef(r.fn::oid);
+    v_new_def := replace(v_def, v_body, v_new_body);
+    IF v_new_def = v_def THEN
+      RAISE EXCEPTION 'Could not reconstruct function definition for %', r.fn;
+    END IF;
     EXECUTE v_new_def;
   END LOOP;
 END
