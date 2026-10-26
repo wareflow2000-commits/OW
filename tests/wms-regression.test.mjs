@@ -653,3 +653,17 @@ test('effective warehouse scope RPC drives client filtering and fails closed', (
   assert.match(app, /current\.accessible_warehouse_ids=\[\.\.\.new Set\(accessibleWarehouseIds\)\]/);
   assert.match(app, /catch\(scopeError\)[\s\S]*accessibleWarehouseIds=\[\]/,'online scope refresh failure must fail closed');
 });
+
+
+test('transfer and return RPCs enforce configured warehouse role scope', () => {
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026062000_orshap_enforce_role_scope_transfer_rpcs_v13958.sql', import.meta.url), 'utf8');
+  assert.match(migration, /dispatch_stock_transfer_order_v2/);
+  assert.match(migration, /receive_stock_transfer_quantity_at_shelf_v2/);
+  assert.match(migration, /review_stock_transfer_return_request/);
+  assert.match(migration, /confirm_stock_transfer_return/);
+  assert.match(migration, /create_stock_return_request/);
+  assert.match(migration, /current_user_can_access_warehouse\(p_source_warehouse_id\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(v_transfer\.destination_warehouse_id\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(v_t\.source_warehouse_id\)/);
+  assert.match(migration, /Expected exactly one patch anchor/,'migration must fail closed if live function definitions differ');
+});
