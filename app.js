@@ -310,7 +310,7 @@ async function v8PersistFacilityRow(kind,table,id,row){
   v5Save();
   return {data,offline:false};
 }
-function v8SaveFacility(kind){
+async function v8SaveFacility(kind){
   const form=document.getElementById('v8-facility-form');if(!form)return;
   const o=Object.fromEntries(new FormData(form).entries());let obj,id,old;
   if(kind==='zone'){v8Err(state.lang==='ar'?'إنشاء المناطق القديمة متوقف.':'Legacy zones are retired.');return}
