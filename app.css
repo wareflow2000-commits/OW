@@ -492,6 +492,20 @@ html.dark .badge.gray {
   background:#fef2f2;
   color:#991b1b;
 }
+.v12-fac-error {
+  position:relative;
+  z-index:1;
+  margin:0 0 14px;
+  padding:12px 14px;
+  border:1px solid var(--danger);
+  border-radius:10px;
+  background:var(--surface);
+  color:var(--text);
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  font-size:13px;
+  font-weight:800;
+}
 .bottom-nav {
 }
 .mobile-only {
@@ -501,12 +515,15 @@ html.dark .badge.gray {
   position:fixed;
   right:20px;
   bottom:20px;
-  z-index:100;
+  z-index:20000 !important;
+  isolation:isolate;
+  pointer-events:none;
   display:flex;
   flex-direction:column;
   gap:8px;
 }
 .toast {
+  pointer-events:auto;
   min-width:270px;
   max-width:360px;
   background:var(--surface);
