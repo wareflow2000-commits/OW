@@ -677,3 +677,29 @@ test('offline transaction and stocktake queues require exactly one explicitly as
   assert.match(app, /Offline stocktake counts require exactly one explicitly assigned warehouse/);
   assert.match(app, /Offline transaction is outside the current user or assigned warehouse scope|Offline transaction requires exactly one explicitly assigned warehouse/);
 });
+
+test('approval stock-key locking and internal transfer scope alignment are fail-closed', () => {
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026070000_orshap_serialize_stock_key_approval_v13958.sql', import.meta.url), 'utf8');
+  assert.match(migration, /pg_advisory_xact_lock\(hashtextextended\(/);
+  assert.match(migration, /v_rec\.item_id::text\s*\|\| ':' \|\| v_rec\.shelf_id::text/);
+  assert.match(migration, /Expected exactly one stock-key read anchor in approve_transaction/);
+  assert.match(migration, /dispatch_stock_transfer_with_destination_warehouse_owner_aware/);
+  assert.match(migration, /receive_stock_transfer_quantity_at_shelf_v2/);
+  assert.match(migration, /confirm_stock_transfer_return_v2\(uuid\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(v_src\.warehouse_id\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(v_t\.destination_warehouse_id\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(v_t\.source_warehouse_id\)/);
+});
+
+test('RLS writes for transactions and stocktake consistently enforce effective warehouse scope', () => {
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026070000_orshap_serialize_stock_key_approval_v13958.sql', import.meta.url), 'utf8');
+  for (const policy of [
+    'stocktake_sessions_permission_insert','stocktake_sessions_permission_update','stocktake_sessions_permission_delete',
+    'transactions_permission_insert','transactions_permission_update','transactions_permission_delete',
+    'transaction_lines_permission_insert','transaction_lines_permission_update','transaction_lines_permission_delete',
+    'stocktake_lines_permission_insert','stocktake_lines_permission_update','stocktake_lines_permission_delete'
+  ]) assert.match(migration, new RegExp('ALTER POLICY ' + policy + ' ON public\\.'));
+  assert.match(migration, /current_user_can_access_warehouse\(warehouse_id\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(t\.warehouse_id\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(s\.warehouse_id\)/);
+});
