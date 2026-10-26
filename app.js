@@ -385,11 +385,14 @@ function c10Item(id){return v5Find('items',id)||{}}
 function c10Shelf(id){return v5Find('shelves',id)||{}}
 function c10TxLines(txId){return v5All('transaction_lines').filter(x=>x.transaction_id===txId)}
 function c10AccessibleWarehouse(id){
-  const p=state.session?.profile||state.session||{};
+  const sessionProfile=state.session?.profile||state.session||{};
+  // The profile table cache persists the last server-derived scope for offline sessions.
+  const cachedProfile=typeof v5Find==='function'&&state.session?.id?v5Find('profiles',state.session.id):null;
+  const p=Array.isArray(sessionProfile.accessible_warehouse_ids)?sessionProfile:(cachedProfile||sessionProfile);
+  const accessible=Array.isArray(p.accessible_warehouse_ids)?p.accessible_warehouse_ids:null;
+  if(accessible)return id?accessible.includes(id):accessible.length>0;
   const role=String(p.role||state.session?.role||'').toUpperCase();
   const assigned=Array.isArray(p.assigned_warehouse_ids)?p.assigned_warehouse_ids:[];
-  // An explicit warehouse assignment constrains every role, including SUPER_ADMIN/ADMIN.
-  // Unassigned administrators retain global access; an unassigned non-admin has no warehouse access.
   if(!id)return ['SUPER_ADMIN','ADMIN'].includes(role)&&assigned.length===0;
   if(['SUPER_ADMIN','ADMIN'].includes(role)&&assigned.length===0)return true;
   return assigned.includes(id);
@@ -875,11 +878,25 @@ try{render()}catch(e){console.error('V10 final render failed',e)}
     V5_DB.stock=V5_DB.stock.map(x=>{const sh=(V5_DB.shelves||[]).find(y=>y.id===x.shelf_id)||{};return {...x,warehouse_id:sh.warehouse_id||null,storage_area_id:sh.storage_area_id||x.storage_area_id||null}});
     V5_DB.transactions=V5_DB.transactions.map(x=>({...x,transaction_lines:V5_DB.transaction_lines.filter(l=>l.transaction_id===x.id),total_qty:V5_DB.transaction_lines.filter(l=>l.transaction_id===x.id).reduce((n,l)=>n+Number(l.quantity||0),0)}));
     applyOfflineMasterOverlay();outboxOverlay();
-    const current=V12.remoteState.profiles.find(p=>p.id===state.session?.id)||state.session?.profile||{};if(state.session){state.session.profile=current;state.session.role=current.role||state.session.role;}const role=String(current.role||state.session?.role||'').toUpperCase(),admin=['SUPER_ADMIN','ADMIN'].includes(role),assigned=Array.isArray(current.assigned_warehouse_ids)?current.assigned_warehouse_ids:[];state.noWarehouseAccess=!admin&&assigned.length===0;
-    // Purge out-of-scope warehouse data from both live and cached mirrors for every assigned role.
-    // Keep the item master global: receipt lines may introduce an item not yet stocked at this warehouse.
-    if(assigned.length){
-      const allow=new Set(assigned),sourceTransactions=(V12.remoteState.transactions||V5_DB.transactions||[]).slice(),sourceSessions=(V12.remoteState.stocktake_sessions||V5_DB.stocktake_sessions||[]).slice();
+    const current=V12.remoteState.profiles.find(p=>p.id===state.session?.id)||state.session?.profile||{};
+    if(state.session){state.session.profile=current;state.session.role=current.role||state.session.role;}
+    let accessibleWarehouseIds=[];
+    try{
+      const scopeClient=await R();
+      const scopeResult=await scopeClient.rpc('current_user_accessible_warehouse_ids');
+      if(scopeResult.error)throw scopeResult.error;
+      accessibleWarehouseIds=(scopeResult.data||[]).map(row=>typeof row==='string'?row:(row?.warehouse_id||row?.id)).filter(Boolean);
+    }catch(scopeError){
+      // Online scope refresh failures must fail closed; offline sessions use the last cached profile.
+      console.error('Unable to refresh effective warehouse scope; clearing warehouse-bound cache',scopeError);
+      accessibleWarehouseIds=[];
+    }
+    current.accessible_warehouse_ids=[...new Set(accessibleWarehouseIds)];
+    if(state.session)state.session.profile=current;
+    const allow=new Set(current.accessible_warehouse_ids);
+    state.noWarehouseAccess=allow.size===0;
+    if(allow.size){
+      const sourceTransactions=(V12.remoteState.transactions||V5_DB.transactions||[]).slice(),sourceSessions=(V12.remoteState.stocktake_sessions||V5_DB.stocktake_sessions||[]).slice();
       const shelves=new Set((V5_DB.shelves||[]).filter(x=>allow.has(x.warehouse_id)).map(x=>x.id)),txids=new Set(sourceTransactions.filter(x=>allow.has(x.warehouse_id)).map(x=>x.id)),sessions=new Set(sourceSessions.filter(x=>allow.has(x.warehouse_id)).map(x=>x.id));
       const auditWarehouse=(x)=>{let details=x.details||{},wid=x.warehouse_id||null;if(typeof details==='string'){try{details=JSON.parse(details)}catch(_){details={}}}wid=wid||details?.warehouse_id||details?.warehouseId||null;const txid=details?.tx_id||details?.transaction_id||(String(x.entity||'').toUpperCase()==='TRANSACTION'?x.entity_id:null);if(!wid&&txid)wid=sourceTransactions.find(t=>t.id===txid)?.warehouse_id||null;return wid?allow.has(wid):true};
       const auditTxWarehouse=(x)=>{let snapshot=x.snapshot||{},wid=x.warehouse_id||null;if(typeof snapshot==='string'){try{snapshot=JSON.parse(snapshot)}catch(_){snapshot={}}}wid=wid||snapshot?.warehouse_id||null;if(!wid&&x.transaction_id)wid=sourceTransactions.find(t=>t.id===x.transaction_id)?.warehouse_id||null;return !!wid&&allow.has(wid)};
@@ -890,7 +907,8 @@ try{render()}catch(e){console.error('V10 final render failed',e)}
         db.transaction_audit=(db.transaction_audit||[]).filter(auditTxWarehouse);db.audit_logs=(db.audit_logs||[]).filter(auditWarehouse);
         db.stock_transfers=(db.stock_transfers||[]).filter(x=>allow.has(x.source_warehouse_id)||allow.has(x.destination_warehouse_id));db.stock_transfer_orders=(db.stock_transfer_orders||[]).filter(x=>allow.has(x.source_warehouse_id)||allow.has(x.destination_warehouse_id));
       }
-    }else if(!admin){
+
+    }else{
       for(const db of [V5_DB,V12.remoteState])for(const k of ['warehouses','storage_areas','shelves','stock','transactions','transaction_lines','stocktake_sessions','stocktake_lines','stocktake_logs','inventory_ledger','transaction_ledger','transaction_audit','archive_movements','archive_balances','stock_transfers','stock_transfer_orders','audit_logs'])db[k]=[];
     }
     outboxOverlay();

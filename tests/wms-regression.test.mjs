@@ -601,19 +601,28 @@ test('cached warehouse-bound records are hidden outside the current assignment',
 });
 
 
-test('profile refresh purges assigned-admin cache scope without restricting the global item catalogue', () => {
+test('profile refresh applies server-derived role warehouse scope and purges out-of-scope cache', () => {
   const start=app.indexOf('const current=V12.remoteState.profiles.find');
   const end=app.indexOf('    outboxOverlay();',start);
   assert.ok(start>=0&&end>start,'profile refresh and cache purge block exists');
   const source=app.slice(start,end);
-  assert.match(source,/if\(assigned\.length\)/);
-  assert.match(source,/for\(const db of \[V5_DB,V12\.remoteState\]\)/,'both local and remote in-memory mirrors are purged');
+  assert.match(source,/current_user_accessible_warehouse_ids/,'effective role and user scope comes from the server');
+  assert.match(source,/accessible_warehouse_ids/,'server-derived scope is cached for offline use');
+  assert.match(source,/if\(allow\.size\)/,'only permitted warehouses remain in cache');
+  assert.match(source,/else\{/,'an empty effective scope purges warehouse-bound cache');
   assert.match(source,/db\.transactions=\(db\.transactions\|\|\[\]\)\.filter/);
-  assert.match(source,/db\.stocktake_sessions=\(db\.stocktake_sessions\|\|\[\]\)\.filter/);
-  assert.doesNotMatch(source,/db\.items\s*=\s*db\.items\.filter/,'item master must remain warehouse-independent');
-  assert.match(source,/else if\(!admin\)/,'unassigned non-admin cache is purged');
+  assert.doesNotMatch(source,/db\.items\s*=\s*db\.items\.filter/,'item master remains warehouse-independent');
 });
 
+test('client warehouse predicate honors a server-derived empty or selected scope', () => {
+  const start=app.indexOf('function c10AccessibleWarehouse(id){');
+  const end=app.indexOf('\nfunction v13OfflineTransactionAllowed',start);
+  assert.ok(start>=0&&end>start,'warehouse access predicate exists');
+  const source=app.slice(start,end);
+  assert.match(source,/Array\.isArray\(p\.accessible_warehouse_ids\)/);
+  assert.match(source,/cachedProfile/,'offline predicate falls back to the cached profile scope');
+  assert.match(source,/if\(accessible\)return id\?accessible\.includes\(id\):accessible\.length>0/);
+});
 test('role permissions modal restores configurable one-or-many warehouse scope', () => {
   assert.match(app, /v12-role-scope-mode/);
   assert.match(app, /id:'SELECTED',name:tr\(/);
@@ -632,4 +641,29 @@ test('role warehouse scope migration defaults to inheritance and intersects expl
   assert.match(migration, /admin_save_role_access_config/);
   assert.match(migration, /admin_list_warehouses_for_role_scope/);
   assert.match(migration, /REVOKE ALL ON TABLE public\.role_warehouse_scopes FROM PUBLIC, anon, authenticated/);
+});
+
+
+test('effective warehouse scope RPC drives client filtering and fails closed', () => {
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026060145_orshap_expose_effective_warehouse_scope_v13958.sql', import.meta.url), 'utf8');
+  assert.match(migration, /current_user_accessible_warehouse_ids/);
+  assert.match(migration, /current_user_can_access_warehouse\(w\.id\)/);
+  assert.match(migration, /REVOKE ALL ON FUNCTION public\.current_user_accessible_warehouse_ids\(\) FROM PUBLIC, anon/);
+  assert.match(app, /scopeClient\.rpc\('current_user_accessible_warehouse_ids'\)/);
+  assert.match(app, /current\.accessible_warehouse_ids=\[\.\.\.new Set\(accessibleWarehouseIds\)\]/);
+  assert.match(app, /catch\(scopeError\)[\s\S]*accessibleWarehouseIds=\[\]/,'online scope refresh failure must fail closed');
+});
+
+
+test('transfer and return RPCs enforce configured warehouse role scope', () => {
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261026060257_orshap_enforce_role_scope_transfer_rpcs_v13958.sql', import.meta.url), 'utf8');
+  assert.match(migration, /dispatch_stock_transfer_order_v2/);
+  assert.match(migration, /receive_stock_transfer_quantity_at_shelf_v2/);
+  assert.match(migration, /review_stock_transfer_return_request/);
+  assert.match(migration, /confirm_stock_transfer_return/);
+  assert.match(migration, /create_stock_return_request/);
+  assert.match(migration, /current_user_can_access_warehouse\(p_source_warehouse_id\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(v_transfer\.destination_warehouse_id\)/);
+  assert.match(migration, /current_user_can_access_warehouse\(v_t\.source_warehouse_id\)/);
+  assert.match(migration, /Expected exactly one patch anchor/,'migration must fail closed if live function definitions differ');
 });
