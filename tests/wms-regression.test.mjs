@@ -389,7 +389,14 @@ test('stocktake counts queue offline and replay through the database count RPC',
   assert.ok(source.includes('if(!navigator.onLine){'));
   assert.ok(source.includes('queueStocktakeCount(line,n)'));
   assert.ok(source.includes('isUuid(line.id)||!isUuid(session.id)'));
-  assert.ok(app.includes('Promise.all([flushOutbox(),flushStocktakeCountQueue()])'));
+  const queueStart=app.indexOf('async function flushStocktakeCountQueue()');
+  const queueEnd=app.indexOf('async function saveStocktakeCount(',queueStart);
+  const queueSource=app.slice(queueStart,queueEnd);
+  assert.match(queueSource,/!c10AccessibleWarehouse\(session\.warehouse_id\)/,'queued count replay must check the current assigned warehouse');
+  assert.ok(queueSource.indexOf('!c10AccessibleWarehouse(session.warehouse_id)')<queueSource.indexOf("await rpc('save_stocktake_count'"),'scope check must happen before the RPC');
+  assert.match(app,/if\(!c10AccessibleWarehouse\(session\.warehouse_id\)\)throw new Error\('This stocktake session is outside your assigned warehouse scope\.'\)/);
+  assert.ok(app.includes('await window.orshapV12?.refresh?.();await window.orshapV12?.syncOfflineMasterQueue?.();'),'manual sync refreshes current assignment before replay');
+  assert.ok(app.includes('refreshV12().then(()=>Promise.all([flushOutbox(),flushStocktakeCountQueue()]))'),'online event refreshes current assignment before replay');
 });
 
 test('stocktake database migration excludes unrelated catalogue items from zero-balance lines', () => {
