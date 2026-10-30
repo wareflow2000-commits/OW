@@ -259,20 +259,14 @@ test('transaction modal never fabricates a reference when metadata is absent', (
   assert.doesNotMatch(app, /reference_no:\s*'REF-'\s*\+\s*Date\.now\(\)/);
 });
 
-test('stock movement reference is database-generated and retryable without fabricated fallback', () => {
-  const start = app.indexOf('async function v13RequestMovementReference(');
-  const end = app.indexOf('function v13StockMovementModal()', start);
-  assert.ok(start >= 0 && end > start, 'stock movement reference requester exists');
-  const source = app.slice(start, end);
-  assert.ok(source.includes("rpc('next_transaction_reference',{})"));
-  assert.ok(source.includes('Reference request timed out'));
-  assert.ok(source.includes('reference_error:true'));
-  assert.ok(source.includes('v13-stock-movement-retry-reference'));
-  const action = app.slice(app.indexOf("if(a==='v13-stock-movement')"), app.indexOf("if(a==='v13-stock-movement-save')"));
-  assert.ok(action.includes("reference_no:''"), 'movement form must start without a fabricated reference');
-  assert.ok(action.includes('void v13RequestMovementReference'));
-  assert.ok(action.includes('v13-stock-movement-retry-reference'));
-  assert.ok(!action.includes('Date.now()'), 'movement reference must not be generated in the browser');
+test('legacy movement reference flow is no longer reachable after modal retirement', () => {
+  const start = app.indexOf("if(a==='v13-stock-movement'||a==='v13-stock-movement-retry-reference'||a==='v13-stock-movement-save')");
+  const end = app.indexOf("if(a==='v12-new-tx')", start);
+  assert.ok(start >= 0 && end > start, 'legacy action guard exists');
+  const action = app.slice(start, end);
+  assert.ok(action.includes("state.page='transferRecovery'"), 'legacy action must route to canonical Transfer & Recovery');
+  assert.ok(action.includes('The legacy movement form is retired'));
+  assert.doesNotMatch(action, /v13StockMovementModal\(\)|v13RequestMovementReference\(|v13SaveStockMovement\(/);
 });
 
 test('stock movement dependent fields are handled by one canonical change listener', () => {
