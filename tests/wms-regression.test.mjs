@@ -266,6 +266,8 @@ test('legacy movement reference flow is no longer reachable after modal retireme
   const action = app.slice(start, end);
   assert.ok(action.includes("state.page='transferRecovery'"), 'legacy action must route to canonical Transfer & Recovery');
   assert.ok(action.includes('The legacy movement form is retired'));
+  assert.ok(action.includes('showToast('), 'retired route uses the supported notification helper');
+  assert.doesNotMatch(action, /say\(/, 'retired route must not call an unavailable legacy notification helper');
   assert.doesNotMatch(action, /v13StockMovementModal\(\)|v13RequestMovementReference\(|v13SaveStockMovement\(/);
 });
 
