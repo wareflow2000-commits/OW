@@ -259,20 +259,17 @@ test('transaction modal never fabricates a reference when metadata is absent', (
   assert.doesNotMatch(app, /reference_no:\s*'REF-'\s*\+\s*Date\.now\(\)/);
 });
 
-test('stock movement reference is database-generated and retryable without fabricated fallback', () => {
-  const start = app.indexOf('async function v13RequestMovementReference(');
-  const end = app.indexOf('function v13StockMovementModal()', start);
-  assert.ok(start >= 0 && end > start, 'stock movement reference requester exists');
-  const source = app.slice(start, end);
-  assert.ok(source.includes("rpc('next_transaction_reference',{})"));
-  assert.ok(source.includes('Reference request timed out'));
-  assert.ok(source.includes('reference_error:true'));
-  assert.ok(source.includes('v13-stock-movement-retry-reference'));
-  const action = app.slice(app.indexOf("if(a==='v13-stock-movement')"), app.indexOf("if(a==='v13-stock-movement-save')"));
-  assert.ok(action.includes("reference_no:''"), 'movement form must start without a fabricated reference');
-  assert.ok(action.includes('void v13RequestMovementReference'));
-  assert.ok(action.includes('v13-stock-movement-retry-reference'));
-  assert.ok(!action.includes('Date.now()'), 'movement reference must not be generated in the browser');
+test('legacy movement reference flow is no longer reachable after modal retirement', () => {
+  const start = app.indexOf("if(a==='v13-stock-movement'||a==='v13-stock-movement-retry-reference'||a==='v13-stock-movement-save')");
+  const end = app.indexOf("if(a==='v12-new-tx')", start);
+  assert.ok(start >= 0 && end > start, 'legacy action guard exists');
+  const action = app.slice(start, end);
+  assert.ok(action.includes("state.page='transferRecovery'"), 'legacy action must route to canonical Transfer & Recovery');
+  assert.ok(action.includes('The legacy movement form is retired'));
+  assert.ok(action.includes('showToast('), 'retired route uses the supported notification helper');
+  assert.doesNotMatch(action, /say\(/, 'retired route must not call an unavailable legacy notification helper');
+  assert.doesNotMatch(app, /say\(state\.lang==='ar'\?'تم إيقاف نموذج التحويل القديم/, 'no wrapper layer may retain the retired say helper call');
+  assert.doesNotMatch(action, /v13StockMovementModal\(\)|v13RequestMovementReference\(|v13SaveStockMovement\(/);
 });
 
 test('stock movement dependent fields are handled by one canonical change listener', () => {
@@ -838,4 +835,35 @@ test('offline replay refreshes server-derived warehouse scope before transaction
   assert.ok(sync.indexOf('await window.orshapV12?.refresh?.()') < sync.indexOf('await window.orshapV12?.syncStocktakeCountQueue?.()'));
   assert.match(app, /if\(!v13OfflineWarehouseAllowed\(tx\.warehouse_id\)\|\|tx\.created_by!==state\.session\.id\)/);
   assert.match(app, /!v13OfflineWarehouseAllowed\(session\.warehouse_id\)/);
+});
+
+
+test('transfer receipt operation IDs are scoped to the authenticated user and transfer', () => {
+  const start = app.indexOf("const receiptUserId=String(state.session?.id||'').trim()");
+  const end = app.indexOf("catch(e){say(e.message||String(e),'Receipt reconciliation failed'", start);
+  assert.ok(start >= 0 && end > start, 'canonical receipt submission handler exists');
+  const source = app.slice(start, end);
+  assert.match(source, /receiptOperationKey=receiptUserId\+':'\+id/);
+  assert.match(source, /receiptPendingKey='orshap_transfer_receipt_op:'\+receiptOperationKey/);
+  assert.match(source, /state\.trfReceiptOperationIds\[receiptOperationKey\]/);
+  assert.match(source, /p_operation_id:receiptOperationId/);
+  assert.match(source, /if\(!isUuid\(receiptUserId\)\)[\s\S]{0,260}submission stopped|if\(!isUuid\(receiptUserId\)\)[\s\S]{0,260}أُوقف الاستلام/);
+  assert.match(source, /legacyReceiptPendingKey='orshap_transfer_receipt_op:'\+id/);
+  assert.match(source, /adoptedLegacyReceiptKey/);
+  assert.match(source, /localStorage\.setItem\(receiptPendingKey,legacyReceiptOperationId\)/);
+  assert.match(source, /if\(adoptedLegacyReceiptKey\)localStorage\.removeItem\(legacyReceiptPendingKey\)/);
+  assert.doesNotMatch(source, /trfReceiptOperationIds\[id\]/, 'no unscoped in-memory operation key remains');
+  assert.ok(source.indexOf('await window.orshapV12.pull()') < source.indexOf('localStorage.removeItem(receiptPendingKey)'), 'the pending ID is retained until authoritative refresh succeeds');
+});
+
+
+test('legacy combined transfer/return modal is retired in favor of Transfer & Recovery', () => {
+  const start = app.indexOf("return pageHead(t.transactions,'معاملات مرتبطة مباشرة بقاعدة البيانات'");
+  const end = app.indexOf("function ", start);
+  assert.ok(start >= 0 && end > start, 'transactions page renderer exists');
+  const page = app.slice(start, end);
+  assert.doesNotMatch(page, /data-action="v13-stock-movement"/, 'transactions page must not expose the legacy combined modal');
+  assert.doesNotMatch(page, /canMove=/, 'legacy movement permission flag is no longer needed');
+  assert.match(app, /if\(a==='v13-stock-movement'\|\|a==='v13-stock-movement-retry-reference'\|\|a==='v13-stock-movement-save'\)\{state\.page='transferRecovery';state\.modal=null;render\(\)/);
+  assert.doesNotMatch(app, /if\(a==='v13-stock-movement-save'\)return oldHandle\(a\)/, 'legacy save action must not fall through to the old posting handler');
 });

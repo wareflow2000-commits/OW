@@ -13,11 +13,21 @@ const { chromium } = require('playwright');
   const pageErrors = [];
   const consoleErrors = [];
   const failedRequests = [];
+  const httpErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+  page.on('response', response => { if (response.status() >= 400) httpErrors.push({ status: response.status(), url: response.url() }); });
   page.on('requestfailed', request => failedRequests.push({ url: request.url(), error: request.failure()?.errorText || 'unknown' }));
 
   try {
+    // Visual smoke tests are isolated from the live production database.
+    // All PostgREST calls receive empty fixtures; individual RPC scenarios override these routes below.
+    await page.route('**/rest/v1/**', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'content-range': '0-0/*' },
+      body: '[]'
+    }));
     await page.goto(baseURL, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.locator('#auth-form').waitFor({ state: 'visible', timeout: 45000 });
     await page.screenshot({ path: path.join(outDir, 'desktop-login-ar.png'), fullPage: true });
@@ -92,7 +102,17 @@ const { chromium } = require('playwright');
       });
     });
     await page.evaluate(() => {
-      state.session = { id: 'smoke-admin', role: 'SUPER_ADMIN', profile: { id: 'smoke-admin', role: 'SUPER_ADMIN', status: 'ACTIVE', assigned_warehouse_ids: [], custom_permissions: ['*'] } };
+      // Explicit in-memory fixtures keep this UI test deterministic and independent of production data.
+      V5_DB.warehouses = [{ id: 'smoke-warehouse', name: 'Smoke Warehouse', code: 'SMK', status: 'ACTIVE', is_active: true }];
+      V5_DB.storage_areas = [{ id: 'smoke-area', warehouse_id: 'smoke-warehouse', name: 'Smoke Area', code: 'SMK-A', status: 'ACTIVE', is_active: true }];
+      V5_DB.administrative_departments = [{ id: 'smoke-department', name: 'Smoke Department', name_ar: 'إدارة اختبار', name_en: 'Smoke Department', status: 'ACTIVE', is_active: true }];
+      V5_DB.shelves = [{ id: 'smoke-shelf-first', warehouse_id: 'smoke-warehouse', storage_area_id: 'smoke-area', code: 'SMK-01', full_path: 'Smoke Area / SMK-01', status: 'ACTIVE', is_active: true, default_administrative_department_id: 'smoke-department' }];
+      V5_DB.items = [
+        { id: 'smoke-item-first', code: 'SMK-ITEM-01', name_ar: 'صنف اختبار أول', name_en: 'Smoke Item One', base_unit: 'pcs', status: 'ACTIVE', is_active: true },
+        { id: 'smoke-item-second', code: 'SMK-ITEM-02', name_ar: 'صنف اختبار ثان', name_en: 'Smoke Item Two', base_unit: 'pcs', status: 'ACTIVE', is_active: true }
+      ];
+      V5_DB.stock = [];
+      state.session = { id: 'smoke-admin', role: 'SUPER_ADMIN', profile: { id: 'smoke-admin', role: 'SUPER_ADMIN', status: 'ACTIVE', assigned_warehouse_ids: [], accessible_warehouse_ids: ['smoke-warehouse'], custom_permissions: ['*'] } };
       state.page = 'dashboard';
       state.c10ReportKind = '';
       render();
@@ -468,36 +488,17 @@ const { chromium } = require('playwright');
     await page.unroute('**/rpc/next_transaction_reference*');
 
 
-    // Verify stock-movement reference failure and retry using mocked RPC responses only.
-    await page.route('**/rpc/next_transaction_reference*', route => route.fulfill({
-      status: 403,
-      contentType: 'application/json',
-      body: JSON.stringify({ message: 'Blocked by visual smoke test; no database call is allowed.' })
-    }));
+    // The retired combined movement modal must route to the canonical Transfer & Recovery page.
+    // No transaction RPC is issued by this compatibility route.
     await page.evaluate(() => handleAction('v13-stock-movement'));
-    await page.locator('#modal-root #v13-stock-movement-form').waitFor({ state: 'visible' });
-    await page.waitForFunction(() => {
-      const retry = document.querySelector('#modal-root [data-action="v13-stock-movement-retry-reference"]');
-      return !!retry && !retry.hidden && !retry.disabled;
-    }, { timeout: 5000 });
-    const failedMovementReference = await page.locator('#v13-stock-movement-form [name="reference_no"]').inputValue();
-    assert.equal(failedMovementReference, '', 'Reference failure must not fabricate a movement reference.');
-    await page.screenshot({ path: path.join(outDir, 'mobile-stock-movement-reference-retry.png'), fullPage: true });
-    await page.unroute('**/rpc/next_transaction_reference*');
-    await page.route('**/rpc/next_transaction_reference*', route => route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify('SMOKE-REFERENCE-001')
-    }));
-    await page.locator('#modal-root [data-action="v13-stock-movement-retry-reference"]').click();
-    await page.waitForFunction(() => document.querySelector('#v13-stock-movement-form [name="reference_no"]')?.value === 'SMOKE-REFERENCE-001', { timeout: 5000 });
-    assert.equal(await page.locator('#v13-stock-movement-form [name="reference_no"]').inputValue(), 'SMOKE-REFERENCE-001', 'Retry must accept the database-generated reference response.');
-    await page.locator('#modal-root [data-action="close-modal"]').last().click();
-    await page.unroute('**/rpc/next_transaction_reference*');
+    await page.waitForFunction(() => state.page === 'transferRecovery' && !state.modal);
+    assert.equal(await page.evaluate(() => state.page), 'transferRecovery', 'Legacy movement action must route to Transfer & Recovery.');
+    assert.equal(await page.locator('#modal-root #v13-stock-movement-form').count(), 0, 'Retired movement modal must not be rendered.');
+    await page.screenshot({ path: path.join(outDir, 'mobile-transfer-recovery-legacy-route.png'), fullPage: true });
 
     const unexpectedConsoleErrors = consoleErrors.filter(message => !/Failed to load resource: the server responded with a status of (401|403)\b/.test(message));
     assert.deepEqual(pageErrors, [], 'No uncaught browser JavaScript errors are allowed during the visual smoke test.');
-    assert.deepEqual(unexpectedConsoleErrors, [], 'Unexpected browser console errors: ' + JSON.stringify(unexpectedConsoleErrors));
+    assert.deepEqual(unexpectedConsoleErrors, [], 'Unexpected browser console errors: ' + JSON.stringify({ unexpectedConsoleErrors, httpErrors }));
     assert.deepEqual(failedRequests, [], 'Network requests must not fail: ' + JSON.stringify(failedRequests));
     console.log(JSON.stringify({ status: 'passed', screenshots: fs.readdirSync(outDir), rtlDesktop, ltrDesktop, mobileLogin, mobileShell, pageErrors, expectedHttpErrors: consoleErrors, failedRequests }, null, 2));
   } finally {
