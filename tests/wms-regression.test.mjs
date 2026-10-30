@@ -858,3 +858,15 @@ test('transfer receipt operation IDs are scoped to the authenticated user and tr
   assert.doesNotMatch(source, /trfReceiptOperationIds\[id\]/, 'no unscoped in-memory operation key remains');
   assert.ok(source.indexOf('await window.orshapV12.pull()') < source.indexOf('localStorage.removeItem(receiptPendingKey)'), 'the pending ID is retained until authoritative refresh succeeds');
 });
+
+
+test('legacy combined transfer/return modal is retired in favor of Transfer & Recovery', () => {
+  const start = app.indexOf("return pageHead(t.transactions,'معاملات مرتبطة مباشرة بقاعدة البيانات'");
+  const end = app.indexOf("function ", start);
+  assert.ok(start >= 0 && end > start, 'transactions page renderer exists');
+  const page = app.slice(start, end);
+  assert.doesNotMatch(page, /data-action="v13-stock-movement"/, 'transactions page must not expose the legacy combined modal');
+  assert.doesNotMatch(page, /canMove=/, 'legacy movement permission flag is no longer needed');
+  assert.match(app, /if\(a==='v13-stock-movement'\|\|a==='v13-stock-movement-retry-reference'\|\|a==='v13-stock-movement-save'\)\{state\.page='transferRecovery';state\.modal=null;render\(\)/);
+  assert.doesNotMatch(app, /if\(a==='v13-stock-movement-save'\)return oldHandle\(a\)/, 'legacy save action must not fall through to the old posting handler');
+});
