@@ -102,6 +102,16 @@ const { chromium } = require('playwright');
       });
     });
     await page.evaluate(() => {
+      // Explicit in-memory fixtures keep this UI test deterministic and independent of production data.
+      V5_DB.warehouses = [{ id: 'smoke-warehouse', name: 'Smoke Warehouse', code: 'SMK', status: 'ACTIVE', is_active: true }];
+      V5_DB.storage_areas = [{ id: 'smoke-area', warehouse_id: 'smoke-warehouse', name: 'Smoke Area', code: 'SMK-A', status: 'ACTIVE', is_active: true }];
+      V5_DB.administrative_departments = [{ id: 'smoke-department', name: 'Smoke Department', name_ar: 'إدارة اختبار', name_en: 'Smoke Department', status: 'ACTIVE', is_active: true }];
+      V5_DB.shelves = [{ id: 'smoke-shelf-first', warehouse_id: 'smoke-warehouse', storage_area_id: 'smoke-area', code: 'SMK-01', full_path: 'Smoke Area / SMK-01', status: 'ACTIVE', is_active: true, default_administrative_department_id: 'smoke-department' }];
+      V5_DB.items = [
+        { id: 'smoke-item-first', code: 'SMK-ITEM-01', name_ar: 'صنف اختبار أول', name_en: 'Smoke Item One', base_unit: 'pcs', status: 'ACTIVE', is_active: true },
+        { id: 'smoke-item-second', code: 'SMK-ITEM-02', name_ar: 'صنف اختبار ثان', name_en: 'Smoke Item Two', base_unit: 'pcs', status: 'ACTIVE', is_active: true }
+      ];
+      V5_DB.stock = [];
       state.session = { id: 'smoke-admin', role: 'SUPER_ADMIN', profile: { id: 'smoke-admin', role: 'SUPER_ADMIN', status: 'ACTIVE', assigned_warehouse_ids: [], custom_permissions: ['*'] } };
       state.page = 'dashboard';
       state.c10ReportKind = '';
