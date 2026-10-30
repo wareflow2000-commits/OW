@@ -112,7 +112,7 @@ const { chromium } = require('playwright');
         { id: 'smoke-item-second', code: 'SMK-ITEM-02', name_ar: 'صنف اختبار ثان', name_en: 'Smoke Item Two', base_unit: 'pcs', status: 'ACTIVE', is_active: true }
       ];
       V5_DB.stock = [];
-      state.session = { id: 'smoke-admin', role: 'SUPER_ADMIN', profile: { id: 'smoke-admin', role: 'SUPER_ADMIN', status: 'ACTIVE', assigned_warehouse_ids: [], custom_permissions: ['*'] } };
+      state.session = { id: 'smoke-admin', role: 'SUPER_ADMIN', profile: { id: 'smoke-admin', role: 'SUPER_ADMIN', status: 'ACTIVE', assigned_warehouse_ids: [], accessible_warehouse_ids: ['smoke-warehouse'], custom_permissions: ['*'] } };
       state.page = 'dashboard';
       state.c10ReportKind = '';
       render();
