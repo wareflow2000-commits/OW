@@ -839,3 +839,22 @@ test('offline replay refreshes server-derived warehouse scope before transaction
   assert.match(app, /if\(!v13OfflineWarehouseAllowed\(tx\.warehouse_id\)\|\|tx\.created_by!==state\.session\.id\)/);
   assert.match(app, /!v13OfflineWarehouseAllowed\(session\.warehouse_id\)/);
 });
+
+
+test('transfer receipt operation IDs are scoped to the authenticated user and transfer', () => {
+  const start = app.indexOf("const receiptUserId=String(state.session?.id||'').trim()");
+  const end = app.indexOf("catch(e){say(e.message||String(e),'Receipt reconciliation failed'", start);
+  assert.ok(start >= 0 && end > start, 'canonical receipt submission handler exists');
+  const source = app.slice(start, end);
+  assert.match(source, /receiptOperationKey=receiptUserId\+':'\+id/);
+  assert.match(source, /receiptPendingKey='orshap_transfer_receipt_op:'\+receiptOperationKey/);
+  assert.match(source, /state\.trfReceiptOperationIds\[receiptOperationKey\]/);
+  assert.match(source, /p_operation_id:receiptOperationId/);
+  assert.match(source, /if\(!isUuid\(receiptUserId\)\)[\s\S]{0,260}submission stopped|if\(!isUuid\(receiptUserId\)\)[\s\S]{0,260}أُوقف الاستلام/);
+  assert.match(source, /legacyReceiptPendingKey='orshap_transfer_receipt_op:'\+id/);
+  assert.match(source, /adoptedLegacyReceiptKey/);
+  assert.match(source, /localStorage\.setItem\(receiptPendingKey,legacyReceiptOperationId\)/);
+  assert.match(source, /if\(adoptedLegacyReceiptKey\)localStorage\.removeItem\(legacyReceiptPendingKey\)/);
+  assert.doesNotMatch(source, /trfReceiptOperationIds\[id\]/, 'no unscoped in-memory operation key remains');
+  assert.ok(source.indexOf('await window.orshapV12.pull()') < source.indexOf('localStorage.removeItem(receiptPendingKey)'), 'the pending ID is retained until authoritative refresh succeeds');
+});
