@@ -268,6 +268,7 @@ test('legacy movement reference flow is no longer reachable after modal retireme
   assert.ok(action.includes('The legacy movement form is retired'));
   assert.ok(action.includes('showToast('), 'retired route uses the supported notification helper');
   assert.doesNotMatch(action, /say\(/, 'retired route must not call an unavailable legacy notification helper');
+  assert.doesNotMatch(app, /say\(state\.lang==='ar'\?'تم إيقاف نموذج التحويل القديم/, 'no wrapper layer may retain the retired say helper call');
   assert.doesNotMatch(action, /v13StockMovementModal\(\)|v13RequestMovementReference\(|v13SaveStockMovement\(/);
 });
 
