@@ -13,8 +13,10 @@ const { chromium } = require('playwright');
   const pageErrors = [];
   const consoleErrors = [];
   const failedRequests = [];
+  const httpErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+  page.on('response', response => { if (response.status() >= 400) httpErrors.push({ status: response.status(), url: response.url() }); });
   page.on('requestfailed', request => failedRequests.push({ url: request.url(), error: request.failure()?.errorText || 'unknown' }));
 
   try {
@@ -478,7 +480,7 @@ const { chromium } = require('playwright');
 
     const unexpectedConsoleErrors = consoleErrors.filter(message => !/Failed to load resource: the server responded with a status of (401|403)\b/.test(message));
     assert.deepEqual(pageErrors, [], 'No uncaught browser JavaScript errors are allowed during the visual smoke test.');
-    assert.deepEqual(unexpectedConsoleErrors, [], 'Unexpected browser console errors: ' + JSON.stringify(unexpectedConsoleErrors));
+    assert.deepEqual(unexpectedConsoleErrors, [], 'Unexpected browser console errors: ' + JSON.stringify({ unexpectedConsoleErrors, httpErrors }));
     assert.deepEqual(failedRequests, [], 'Network requests must not fail: ' + JSON.stringify(failedRequests));
     console.log(JSON.stringify({ status: 'passed', screenshots: fs.readdirSync(outDir), rtlDesktop, ltrDesktop, mobileLogin, mobileShell, pageErrors, expectedHttpErrors: consoleErrors, failedRequests }, null, 2));
   } finally {
