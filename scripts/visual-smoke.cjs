@@ -20,6 +20,14 @@ const { chromium } = require('playwright');
   page.on('requestfailed', request => failedRequests.push({ url: request.url(), error: request.failure()?.errorText || 'unknown' }));
 
   try {
+    // Visual smoke tests are isolated from the live production database.
+    // All PostgREST calls receive empty fixtures; individual RPC scenarios override these routes below.
+    await page.route('**/rest/v1/**', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'content-range': '0-0/*' },
+      body: '[]'
+    }));
     await page.goto(baseURL, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.locator('#auth-form').waitFor({ state: 'visible', timeout: 45000 });
     await page.screenshot({ path: path.join(outDir, 'desktop-login-ar.png'), fullPage: true });
